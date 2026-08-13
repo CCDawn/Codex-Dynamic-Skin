@@ -181,32 +181,34 @@ try {
   assert.equal(referencedSummary.media.type, "video");
   assert.equal(referencedSummary.media.size, videoBytes.length);
 
-  const managerListing = await runManagerCommand([
-    "-Action", "ListWallpaperEngine",
-    "-SteamLibraryPath", steamLibrary,
-  ]);
-  assert.equal(managerListing.code, 0, managerListing.stderr);
-  const managerPayload = JSON.parse(managerListing.stdout.toString("utf8"));
-  assert.equal(managerPayload.items.find((item) => item.workshopId === workshopId)?.name, "本地动态壁纸",
-    "Manager command JSON must stay UTF-8 when the Wallpaper Engine title contains Chinese.");
-  const listedScene = managerPayload.items.find((item) => item.workshopId === sceneWorkshopId);
-  assert.equal(listedScene?.name, "本地场景壁纸");
-  assert.equal(listedScene?.mediaType, "scene");
-  assert.equal(listedScene?.relativePath, "scene.pkg");
+  if (process.platform === "win32") {
+    const managerListing = await runManagerCommand([
+      "-Action", "ListWallpaperEngine",
+      "-SteamLibraryPath", steamLibrary,
+    ]);
+    assert.equal(managerListing.code, 0, managerListing.stderr);
+    const managerPayload = JSON.parse(managerListing.stdout.toString("utf8"));
+    assert.equal(managerPayload.items.find((item) => item.workshopId === workshopId)?.name, "本地动态壁纸",
+      "Manager command JSON must stay UTF-8 when the Wallpaper Engine title contains Chinese.");
+    const listedScene = managerPayload.items.find((item) => item.workshopId === sceneWorkshopId);
+    assert.equal(listedScene?.name, "本地场景壁纸");
+    assert.equal(listedScene?.mediaType, "scene");
+    assert.equal(listedScene?.relativePath, "scene.pkg");
 
-  const sceneStateRoot = path.join(temporary, "scene-state");
-  const sceneApplied = await runManagerCommand([
-    "-Action", "UseSceneStream",
-    "-Path", path.join(sceneWorkshopDirectory, "scene.pkg"),
-    "-StreamUrl", streamUrl,
-    "-StateRoot", sceneStateRoot,
-  ]);
-  assert.equal(sceneApplied.code, 0, sceneApplied.stderr);
-  const sceneAppliedPayload = JSON.parse(sceneApplied.stdout.toString("utf8"));
-  assert.equal(sceneAppliedPayload.mediaType, "scene");
-  const checkedAppliedScene = await runInjector(path.join(sceneStateRoot, "active-theme"));
-  assert.equal(checkedAppliedScene.code, 0, checkedAppliedScene.stderr);
-  assert.equal(JSON.parse(checkedAppliedScene.stdout).media.streamUrl, streamUrl);
+    const sceneStateRoot = path.join(temporary, "scene-state");
+    const sceneApplied = await runManagerCommand([
+      "-Action", "UseSceneStream",
+      "-Path", path.join(sceneWorkshopDirectory, "scene.pkg"),
+      "-StreamUrl", streamUrl,
+      "-StateRoot", sceneStateRoot,
+    ]);
+    assert.equal(sceneApplied.code, 0, sceneApplied.stderr);
+    const sceneAppliedPayload = JSON.parse(sceneApplied.stdout.toString("utf8"));
+    assert.equal(sceneAppliedPayload.mediaType, "scene");
+    const checkedAppliedScene = await runInjector(path.join(sceneStateRoot, "active-theme"));
+    assert.equal(checkedAppliedScene.code, 0, checkedAppliedScene.stderr);
+    assert.equal(JSON.parse(checkedAppliedScene.stdout).media.streamUrl, streamUrl);
+  }
 
   const escapedReferenceDirectory = path.join(temporary, "escaped-reference");
   await fs.mkdir(escapedReferenceDirectory);
