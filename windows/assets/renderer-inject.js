@@ -20,6 +20,9 @@
     "dream-task-ambient",
     "dream-task-banner",
     "dream-task-off",
+    "dream-route-home",
+    "dream-route-task",
+    "dream-home-utility-present",
   ];
   const ROOT_PROPERTIES = [
     "--dream-art",
@@ -33,12 +36,27 @@
     "--dream-wallpaper-cover",
   ];
   const HOME_UTILITY_CLASS = "dream-home-utility";
+  const TASK_SEARCH_STICKY_CLASS = "dream-task-search-sticky";
+  const TASK_SEARCH_INPUT_CLASS = "dream-task-search-input";
   const installToken = {};
   let samplingNativeShell = false;
   let observer = null;
+  let appearanceObserver = null;
   window.__CODEX_DREAM_SKIN_DISABLED__ = false;
 
   const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, Number(value)));
+  const setStylePropertyIfChanged = (style, property, value) => {
+    if (!style) return false;
+    const current = style.getPropertyValue?.(property)?.trim?.() || "";
+    if (current === value) return false;
+    style.setProperty(property, value);
+    return true;
+  };
+  const setClassEnabled = (classList, className, enabled) => {
+    if (!classList || classList.contains(className) === enabled) return false;
+    classList.toggle(className, enabled);
+    return true;
+  };
   const luminance = (red, green, blue) => {
     const linear = [red, green, blue].map((value) => {
       const channel = value / 255;
@@ -83,6 +101,22 @@
     const mediaSize = Number.isSafeInteger(Number(media.size)) && Number(media.size) > 0
       ? Number(media.size)
       : null;
+    const streamUrl = (() => {
+      if (typeof media.streamUrl !== "string" || !media.streamUrl) return null;
+      try {
+        const parsed = new URL(media.streamUrl);
+        const loopback = ["127.0.0.1", "localhost", "[::1]", "::1"].includes(parsed.hostname);
+        const safePath = /^\/[A-Za-z0-9_-]{16,128}\/stream\.mp4$/.test(parsed.pathname);
+        if (parsed.protocol !== "http:" || !loopback || !parsed.port || parsed.username ||
+            parsed.password || parsed.search || parsed.hash || !safePath) return null;
+        return parsed.href;
+      } catch {
+        return null;
+      }
+    })();
+    const streamCodec = streamUrl && media.codec === "avc1.42c01f"
+      ? media.codec
+      : streamUrl ? "avc1.42c01f" : null;
     const playbackRate = Number.isFinite(Number(media.playbackRate))
       ? clamp(Number(media.playbackRate), .25, 2)
       : 1;
@@ -101,6 +135,8 @@
       mediaType,
       mediaMime,
       mediaSize,
+      streamUrl,
+      streamCodec,
       playbackRate,
       wallpaperReveal,
     };
@@ -108,8 +144,10 @@
 
   const previous = window[STATE_KEY];
   if (previous?.observer) previous.observer.disconnect();
+  if (previous?.appearanceObserver) previous.appearanceObserver.disconnect();
   if (previous?.timer) clearInterval(previous.timer);
   if (previous?.scheduler?.timeout) clearTimeout(previous.scheduler.timeout);
+  previous?.stopStream?.();
   if (previous?.artUrl) URL.revokeObjectURL(previous.artUrl);
   if (previous?.mediaUrl) URL.revokeObjectURL(previous.mediaUrl);
   if (previous?.visibilityHandler) {
@@ -129,6 +167,7 @@
   const config = normalizeConfig(rawConfig);
   let mediaUrl = null;
   let mediaTransfer = null;
+  let streamController = null;
   let profile = {
     ...defaultProfile,
     aspect: config.initialAspect ?? (config.mediaType === "video" ? 16 / 9 : defaultProfile.aspect),
@@ -320,6 +359,8 @@
     document.querySelectorAll(".dream-task").forEach((node) => node.classList.remove("dream-task"));
     document.querySelectorAll(".dream-home-shell").forEach((node) => node.classList.remove("dream-home-shell"));
     document.querySelectorAll(`.${HOME_UTILITY_CLASS}`).forEach((node) => node.classList.remove(HOME_UTILITY_CLASS));
+    document.querySelectorAll(`.${TASK_SEARCH_STICKY_CLASS}`).forEach((node) => node.classList.remove(TASK_SEARCH_STICKY_CLASS));
+    document.querySelectorAll(`.${TASK_SEARCH_INPUT_CLASS}`).forEach((node) => node.classList.remove(TASK_SEARCH_INPUT_CLASS));
     document.getElementById(STYLE_ID)?.remove();
     document.getElementById(CHROME_ID)?.remove();
     document.getElementById(MEDIA_ID)?.remove();
@@ -337,29 +378,29 @@
       : config.taskMode;
     const accent = config.accent || `rgb(${profile.accent.join(" ")})`;
     const accentInk = luminance(...profile.accent) > .42 ? "rgb(26 24 28)" : "rgb(250 248 251)";
-    root.classList.toggle("dream-theme-light", appearance === "light");
-    root.classList.toggle("dream-theme-dark", appearance === "dark");
-    root.classList.toggle("dream-art-video", config.mediaType === "video");
-    root.classList.toggle("dream-art-wide", profile.aspect >= 1.75);
-    root.classList.toggle("dream-art-standard", profile.aspect < 1.75);
+    setClassEnabled(root.classList, "dream-theme-light", appearance === "light");
+    setClassEnabled(root.classList, "dream-theme-dark", appearance === "dark");
+    setClassEnabled(root.classList, "dream-art-video", config.mediaType === "video");
+    setClassEnabled(root.classList, "dream-art-wide", profile.aspect >= 1.75);
+    setClassEnabled(root.classList, "dream-art-standard", profile.aspect < 1.75);
     for (const value of ["left", "center", "right"]) {
-      root.classList.toggle(`dream-focus-${value}`, focus === value);
+      setClassEnabled(root.classList, `dream-focus-${value}`, focus === value);
     }
     for (const value of ["left", "center", "right", "none"]) {
-      root.classList.toggle(`dream-safe-${value}`, safeArea === value);
+      setClassEnabled(root.classList, `dream-safe-${value}`, safeArea === value);
     }
     for (const value of ["ambient", "banner", "off"]) {
-      root.classList.toggle(`dream-task-${value}`, taskMode === value);
+      setClassEnabled(root.classList, `dream-task-${value}`, taskMode === value);
     }
-    root.style.setProperty("--dream-art", artUrl ? `url("${artUrl}")` : "none");
-    root.style.setProperty("--dream-art-position", `${Math.round(focusX * 100)}% ${Math.round(focusY * 100)}%`);
-    root.style.setProperty("--dream-focus-x", String(focusX));
-    root.style.setProperty("--dream-focus-y", String(focusY));
-    root.style.setProperty("--dream-accent", accent);
-    root.style.setProperty("--dream-accent-ink", accentInk);
-    root.style.setProperty("--dream-image-luma", profile.luma.toFixed(3));
-    root.style.setProperty("--dream-wallpaper-reveal", config.wallpaperReveal.toFixed(2));
-    root.style.setProperty("--dream-wallpaper-cover", `${Math.round((1 - config.wallpaperReveal) * 100)}%`);
+    setStylePropertyIfChanged(root.style, "--dream-art", artUrl ? `url("${artUrl}")` : "none");
+    setStylePropertyIfChanged(root.style, "--dream-art-position", `${Math.round(focusX * 100)}% ${Math.round(focusY * 100)}%`);
+    setStylePropertyIfChanged(root.style, "--dream-focus-x", String(focusX));
+    setStylePropertyIfChanged(root.style, "--dream-focus-y", String(focusY));
+    setStylePropertyIfChanged(root.style, "--dream-accent", accent);
+    setStylePropertyIfChanged(root.style, "--dream-accent-ink", accentInk);
+    setStylePropertyIfChanged(root.style, "--dream-image-luma", profile.luma.toFixed(3));
+    setStylePropertyIfChanged(root.style, "--dream-wallpaper-reveal", config.wallpaperReveal.toFixed(2));
+    setStylePropertyIfChanged(root.style, "--dream-wallpaper-cover", `${Math.round((1 - config.wallpaperReveal) * 100)}%`);
   };
 
   const setWallpaperReveal = (value) => {
@@ -367,8 +408,9 @@
     if (!Number.isFinite(numeric) || numeric < 0 || numeric > 1) return null;
     config.wallpaperReveal = numeric;
     const root = document.documentElement;
-    root?.style.setProperty("--dream-wallpaper-reveal", numeric.toFixed(2));
-    root?.style.setProperty("--dream-wallpaper-cover", `${Math.round((1 - numeric) * 100)}%`);
+    setStylePropertyIfChanged(root?.style, "--dream-wallpaper-reveal", numeric.toFixed(2));
+    setStylePropertyIfChanged(root?.style, "--dream-wallpaper-cover", `${Math.round((1 - numeric) * 100)}%`);
+    syncMediaElement();
     return numeric;
   };
 
@@ -393,26 +435,141 @@
       media.preload = "auto";
       document.body.appendChild(media);
     }
-    media.defaultMuted = true;
-    media.muted = true;
-    media.loop = true;
-    media.playbackRate = config.playbackRate;
+    if (!media.defaultMuted) media.defaultMuted = true;
+    if (!media.muted) media.muted = true;
+    const shouldLoop = !config.streamUrl;
+    if (media.loop !== shouldLoop) media.loop = shouldLoop;
+    if (media.playbackRate !== config.playbackRate) media.playbackRate = config.playbackRate;
     if (mediaUrl && media.src !== mediaUrl) {
       media.src = mediaUrl;
       media.load?.();
     }
-    if (!mediaUrl || document.hidden) {
-      media.pause?.();
-    } else {
+    if (!mediaUrl || document.hidden || config.wallpaperReveal <= 0) {
+      if (!media.paused) media.pause?.();
+    } else if (media.paused) {
       const playback = media.play?.();
       playback?.catch?.(() => {});
     }
     return media;
   };
 
+  const waitForSourceBuffer = (sourceBuffer) => {
+    if (!sourceBuffer?.updating) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const done = () => {
+        sourceBuffer.removeEventListener?.("error", failed);
+        resolve();
+      };
+      const failed = () => {
+        sourceBuffer.removeEventListener?.("updateend", done);
+        reject(new Error("Media stream append failed"));
+      };
+      sourceBuffer.addEventListener?.("updateend", done, { once: true });
+      sourceBuffer.addEventListener?.("error", failed, { once: true });
+    });
+  };
+
+  const stopStream = () => {
+    const controller = streamController;
+    if (!controller) return false;
+    streamController = null;
+    controller.abort.abort();
+    controller.reader?.cancel?.().catch?.(() => {});
+    return true;
+  };
+
+  const startStream = async () => {
+    if (config.mediaType !== "video" || !config.streamUrl || typeof MediaSource !== "function" ||
+        typeof fetch !== "function" || typeof AbortController !== "function") return false;
+    const mime = `video/mp4; codecs="${config.streamCodec}"`;
+    if (typeof MediaSource.isTypeSupported === "function" && !MediaSource.isTypeSupported(mime)) {
+      return false;
+    }
+    stopStream();
+    const controller = {
+      abort: new AbortController(),
+      reader: null,
+      mediaSource: new MediaSource(),
+      stats: {
+        status: "connecting",
+        chunks: 0,
+        bytes: 0,
+        startedAt: Date.now(),
+        lastAppendAt: null,
+        error: null,
+      },
+    };
+    streamController = controller;
+    if (mediaUrl) URL.revokeObjectURL(mediaUrl);
+    mediaUrl = URL.createObjectURL(controller.mediaSource);
+    const state = window[STATE_KEY];
+    if (state?.installToken === installToken) {
+      state.mediaUrl = mediaUrl;
+      state.streamStats = controller.stats;
+    }
+    syncMediaElement();
+    try {
+      if (controller.mediaSource.readyState !== "open") {
+        await new Promise((resolve, reject) => {
+          controller.mediaSource.addEventListener("sourceopen", resolve, { once: true });
+          controller.mediaSource.addEventListener("error", reject, { once: true });
+        });
+      }
+      if (streamController !== controller) return false;
+      const sourceBuffer = controller.mediaSource.addSourceBuffer(mime);
+      controller.stats.status = "streaming";
+      const response = await fetch(config.streamUrl, {
+        cache: "no-store",
+        credentials: "omit",
+        signal: controller.abort.signal,
+      });
+      if (!response.ok || !response.body) throw new Error(`Stream request failed: ${response.status}`);
+      controller.reader = response.body.getReader();
+      for (;;) {
+        const { value, done } = await controller.reader.read();
+        if (done || streamController !== controller) break;
+        if (!(value instanceof Uint8Array) || value.byteLength === 0) continue;
+        await waitForSourceBuffer(sourceBuffer);
+        sourceBuffer.appendBuffer(value);
+        await waitForSourceBuffer(sourceBuffer);
+        controller.stats.chunks += 1;
+        controller.stats.bytes += value.byteLength;
+        controller.stats.lastAppendAt = Date.now();
+        const media = document.getElementById(MEDIA_ID);
+        const buffered = sourceBuffer.buffered;
+        if (media && buffered?.length && media.currentTime > 20) {
+          const removeBefore = media.currentTime - 10;
+          if (buffered.start(0) < removeBefore - 5) {
+            sourceBuffer.remove(0, removeBefore);
+            await waitForSourceBuffer(sourceBuffer);
+          }
+        }
+      }
+      if (streamController === controller && controller.mediaSource.readyState === "open") {
+        controller.mediaSource.endOfStream();
+      }
+      controller.stats.status = "ended";
+      return true;
+    } catch (error) {
+      controller.stats.status = controller.abort.signal.aborted ? "aborted" : "error";
+      controller.stats.error = controller.abort.signal.aborted
+        ? null
+        : String(error?.message || error || "Unknown local stream error").slice(0, 500);
+      if (!controller.abort.signal.aborted) {
+        console.error(`[dream-skin] local stream failed: ${controller.stats.error}`);
+      }
+      return false;
+    } finally {
+      if (streamController === controller && controller.abort.signal.aborted) {
+        streamController = null;
+      }
+    }
+  };
+
   const beginMedia = ({ mime, size } = {}) => {
     if (config.mediaType !== "video" || mime !== config.mediaMime ||
         !Number.isSafeInteger(size) || size !== config.mediaSize) return false;
+    stopStream();
     mediaTransfer = { chunks: [], received: 0, expected: size, mime };
     if (mediaUrl) URL.revokeObjectURL(mediaUrl);
     mediaUrl = null;
@@ -466,7 +623,7 @@
       return;
     }
 
-    root.classList.add("codex-dream-skin");
+    setClassEnabled(root.classList, "codex-dream-skin", true);
     applyProfile(root);
 
     let style = document.getElementById(STYLE_ID);
@@ -480,19 +637,39 @@
       style.dataset.dreamVersion = "3";
     }
 
-    const home = document.querySelector('[role="main"]:has([data-testid="home-icon"])');
+    const home = document.querySelector('[data-testid="home-icon"]')?.closest?.('[role="main"]') || null;
     const routeMains = [...document.querySelectorAll('[role="main"]')];
     for (const candidate of routeMains) {
-      candidate.classList.toggle("dream-home", candidate === home);
-      candidate.classList.toggle("dream-task", candidate !== home);
+      setClassEnabled(candidate.classList, "dream-home", candidate === home);
+      setClassEnabled(candidate.classList, "dream-task", candidate !== home);
     }
     const utilityBars = new Set(home ? home.querySelectorAll('[class*="_homeUtilityBar_"]') : []);
     for (const candidate of document.querySelectorAll(`.${HOME_UTILITY_CLASS}`)) {
-      if (!utilityBars.has(candidate)) candidate.classList.remove(HOME_UTILITY_CLASS);
+      if (!utilityBars.has(candidate)) setClassEnabled(candidate.classList, HOME_UTILITY_CLASS, false);
     }
-    for (const candidate of utilityBars) candidate.classList.add(HOME_UTILITY_CLASS);
-    shellMain.classList.toggle("dream-home-shell", Boolean(home));
-    shellMain.classList.toggle("dream-task", !home && routeMains.length === 0);
+    for (const candidate of utilityBars) setClassEnabled(candidate.classList, HOME_UTILITY_CLASS, true);
+    setClassEnabled(root.classList, "dream-route-home", Boolean(home));
+    setClassEnabled(root.classList, "dream-route-task", !home);
+    setClassEnabled(root.classList, "dream-home-utility-present", utilityBars.size > 0);
+    setClassEnabled(shellMain.classList, "dream-home-shell", Boolean(home));
+    setClassEnabled(shellMain.classList, "dream-task", !home && routeMains.length === 0);
+
+    const stickySearches = new Set(
+      [...document.querySelectorAll("main.main-surface:not(.dream-home-shell) div.sticky")]
+        .filter((candidate) => candidate.querySelector('input[type="text"]')),
+    );
+    const searchInputs = new Set(
+      [...document.querySelectorAll("main.main-surface:not(.dream-home-shell) div.no-drag")]
+        .filter((candidate) => candidate.querySelector(':scope > input[type="text"]')),
+    );
+    for (const candidate of document.querySelectorAll(`.${TASK_SEARCH_STICKY_CLASS}`)) {
+      setClassEnabled(candidate.classList, TASK_SEARCH_STICKY_CLASS, stickySearches.has(candidate));
+    }
+    for (const candidate of stickySearches) setClassEnabled(candidate.classList, TASK_SEARCH_STICKY_CLASS, true);
+    for (const candidate of document.querySelectorAll(`.${TASK_SEARCH_INPUT_CLASS}`)) {
+      setClassEnabled(candidate.classList, TASK_SEARCH_INPUT_CLASS, searchInputs.has(candidate));
+    }
+    for (const candidate of searchInputs) setClassEnabled(candidate.classList, TASK_SEARCH_INPUT_CLASS, true);
 
     let chrome = document.getElementById(CHROME_ID);
     if (!chrome || chrome.parentElement !== document.body) {
@@ -502,7 +679,7 @@
       chrome.setAttribute("aria-hidden", "true");
       document.body.appendChild(chrome);
     }
-    chrome.classList.toggle("dream-home-shell", Boolean(home));
+    setClassEnabled(chrome.classList, "dream-home-shell", Boolean(home));
     syncMediaElement();
   };
 
@@ -512,8 +689,10 @@
     window.__CODEX_DREAM_SKIN_DISABLED__ = true;
     clearSkinDom();
     state?.observer?.disconnect();
+    state?.appearanceObserver?.disconnect();
     if (state?.timer) clearInterval(state.timer);
     if (state?.scheduler?.timeout) clearTimeout(state.scheduler.timeout);
+    state?.stopStream?.();
     if (state?.artUrl) URL.revokeObjectURL(state.artUrl);
     if (state?.mediaUrl) URL.revokeObjectURL(state.mediaUrl);
     if (state?.visibilityHandler) {
@@ -531,24 +710,48 @@
       ensure();
     }, 180);
   };
-  observer = new MutationObserver(() => {
+  const relevantSurfaceSelector = [
+    "main.main-surface",
+    '[role="main"]',
+    '[data-testid="home-icon"]',
+    '[class*="_homeUtilityBar_"]',
+    'input[type="text"]',
+  ].join(",");
+  const containsRelevantSurface = (node) => Boolean(
+    node?.matches?.(relevantSurfaceSelector) || node?.querySelector?.(relevantSurfaceSelector)
+  );
+  const mutationAffectsSkin = (mutation) => {
+    return [...(mutation.addedNodes || []), ...(mutation.removedNodes || [])]
+      .some(containsRelevantSurface);
+  };
+  observer = new MutationObserver((mutations) => {
     if (samplingNativeShell) return;
+    if (!mutations.some(mutationAffectsSkin)) return;
     scheduleEnsure();
   });
   observer.observe(document.documentElement, {
     childList: true,
     subtree: true,
+  });
+  appearanceObserver = new MutationObserver(() => {
+    if (samplingNativeShell) return;
+    scheduleEnsure();
+  });
+  appearanceObserver.observe(document.documentElement, {
     attributes: true,
     attributeFilter: ["class", "data-theme", "data-appearance", "data-color-mode"],
   });
-  const timer = setInterval(ensure, 5000);
+  const timer = setInterval(ensure, 15000);
   const visibilityHandler = () => syncMediaElement();
   document.addEventListener?.("visibilitychange", visibilityHandler);
   window[STATE_KEY] = {
-    ensure, cleanup, observer, timer, scheduler, artUrl, mediaUrl, beginMedia, appendMedia, commitMedia,
-    setWallpaperReveal, visibilityHandler, profile, config, installToken, version: "1.2.0",
+    ensure, cleanup, observer, appearanceObserver, timer, scheduler, artUrl, mediaUrl,
+    beginMedia, appendMedia, commitMedia,
+    startStream, stopStream, setWallpaperReveal, visibilityHandler, profile, config,
+    streamStats: null, installToken, version: "1.2.0",
   };
   ensure();
+  if (config.streamUrl) void startStream();
   analyzeArt().then((result) => {
     const state = window[STATE_KEY];
     if (state?.installToken !== installToken || window.__CODEX_DREAM_SKIN_DISABLED__) return;

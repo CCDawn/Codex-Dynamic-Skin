@@ -46,8 +46,13 @@ assert.match(
 );
 assert.match(
   css,
-  /\.dream-art-video main\.main-surface\s*>\s*header\.app-header-tint\s*\{[^}]*background:\s*color-mix\([^}]*backdrop-filter:\s*blur\(/,
-  "Dynamic wallpaper mode must protect the secondary Codex toolbar from changing video frames.",
+  /\.dream-art-video main\.main-surface\s*>\s*header\.app-header-tint\s*\{[^}]*background:\s*var\(--dream-immersive-composer\) !important;[^}]*backdrop-filter:\s*none !important;/,
+  "Dynamic wallpaper mode must keep the secondary Codex toolbar responsive to the shared veil without live blur.",
+);
+assert.match(
+  css,
+  /\.dream-art-video \[class~="group\/application-menu-top-bar"\]\s*\{[^}]*background:\s*var\(--dream-immersive-composer\) !important;[^}]*backdrop-filter:\s*none !important;/,
+  "Dynamic wallpaper mode must avoid live blur on the native application menu.",
 );
 assert.match(
   css,
@@ -64,6 +69,16 @@ assert.match(
   /--dream-immersive-edge:\s*color-mix\([^;]*var\(--dream-wallpaper-cover\)[^;]*transparent\)/,
   "The full-window foreground veil must disappear as wallpaper reveal reaches 100%.",
 );
+assert.match(
+  css,
+  /--dream-immersive-composer:\s*color-mix\([^;]*var\(--dream-wallpaper-cover\)[^;]*transparent\)/,
+  "Composer and toolbar surfaces must be fully transparent at 100% wallpaper reveal.",
+);
+assert.match(
+  css,
+  /main\.main-surface\.dream-home-shell,[\s\S]*?background-position:\s*0 var\(--height-token-toolbar, 46px\) !important;/,
+  "Home and task route veils must start below the fixed secondary toolbar to avoid a double tint.",
+);
 
 function createFixture({
   shellPresent,
@@ -76,6 +91,7 @@ function createFixture({
   computedColorScheme = "",
   osAppearance = "light",
   analysisFixture = null,
+  streamFixture = null,
 }) {
   const nodes = new Map();
   const rootClasses = new Set(staleSkin ? ["codex-dream-skin"] : []);
@@ -84,6 +100,14 @@ function createFixture({
   const observers = [];
   const documentListeners = new Map();
   let objectUrlCount = 0;
+  let styleWriteCount = 0;
+  let intervalDelay = null;
+  let mediaPlayCount = 0;
+  let mediaPauseCount = 0;
+  let streamAppendCount = 0;
+  let streamFetchUrl = null;
+  let streamAborted = false;
+  let streamEnded = false;
   let hasShell = shellPresent;
   let documentHidden = false;
   let root;
@@ -97,22 +121,17 @@ function createFixture({
   };
   const makeClassList = (classes = new Set(), onMutation = () => {}) => ({
     add(...values) {
-      let changed = false;
-      for (const value of values) {
-        if (!classes.has(value)) { classes.add(value); changed = true; }
-      }
-      if (changed) onMutation();
+      for (const value of values) classes.add(value);
+      if (values.length > 0) onMutation();
     },
     remove(...values) {
-      let changed = false;
-      for (const value of values) changed = classes.delete(value) || changed;
-      if (changed) onMutation();
+      for (const value of values) classes.delete(value);
+      if (values.length > 0) onMutation();
     },
     toggle(value, enabled) {
-      const changed = enabled ? !classes.has(value) : classes.has(value);
       if (enabled) classes.add(value);
       else classes.delete(value);
-      if (changed) onMutation();
+      onMutation();
     },
     contains(value) { return classes.has(value); },
   });
@@ -122,7 +141,8 @@ function createFixture({
     classList: makeClassList(rootClasses, queueRootClassMutation),
     getAttribute() { return null; },
     style: {
-      setProperty(key, value) { rootStyles.set(key, value); },
+      getPropertyValue(key) { return rootStyles.get(key) ?? ""; },
+      setProperty(key, value) { styleWriteCount += 1; rootStyles.set(key, value); },
       removeProperty(key) { rootStyles.delete(key); },
     },
     appendChild(node) {
@@ -148,6 +168,11 @@ function createFixture({
   const routeClasses = new Set();
   const utilityClasses = new Set();
   const utilityNode = { classList: makeClassList(utilityClasses) };
+  const homeIcon = {
+    closest(selector) {
+      return selector === '[role="main"]' && hasShell && homePresent ? routeMain : null;
+    },
+  };
   const routeMain = {
     classList: makeClassList(routeClasses),
     querySelectorAll(selector) {
@@ -184,8 +209,8 @@ function createFixture({
       setAttribute() {},
       removeAttribute(name) { if (name === "src") this.src = ""; },
       load() {},
-      pause() { this.paused = true; },
-      play() { this.paused = false; return Promise.resolve(); },
+      pause() { mediaPauseCount += 1; this.paused = true; },
+      play() { mediaPlayCount += 1; this.paused = false; return Promise.resolve(); },
       remove() { nodes.delete(this.id); },
     };
   };
@@ -212,9 +237,7 @@ function createFixture({
     querySelector(selector) {
       if (selector === "main.main-surface") return hasShell ? shellMain : null;
       if (selector === "aside.app-shell-left-panel") return hasShell && sidebarPresent ? {} : null;
-      if (selector === '[role="main"]:has([data-testid="home-icon"])') {
-        return hasShell && homePresent ? routeMain : null;
-      }
+      if (selector === '[data-testid="home-icon"]') return hasShell && homePresent ? homeIcon : null;
       return null;
     },
     querySelectorAll(selector) {
@@ -234,6 +257,55 @@ function createFixture({
       return [];
     },
   };
+  class FixtureUrl extends globalThis.URL {
+    static createObjectURL() { objectUrlCount += 1; return `blob:fixture-${objectUrlCount}`; }
+    static revokeObjectURL(value) { revokedUrls.push(value); }
+  }
+  class FixtureSourceBuffer {
+    updating = false;
+    buffered = { length: 0, start() { return 0; }, end() { return 0; } };
+    listeners = new Map();
+    addEventListener(type, listener) { this.listeners.set(type, listener); }
+    removeEventListener(type, listener) {
+      if (this.listeners.get(type) === listener) this.listeners.delete(type);
+    }
+    appendBuffer() {
+      this.updating = true;
+      streamAppendCount += 1;
+      queueMicrotask(() => {
+        this.updating = false;
+        this.listeners.get("updateend")?.();
+      });
+    }
+    remove() {
+      this.updating = true;
+      queueMicrotask(() => {
+        this.updating = false;
+        this.listeners.get("updateend")?.();
+      });
+    }
+  }
+  class FixtureMediaSource {
+    static isTypeSupported(mime) {
+      return mime === 'video/mp4; codecs="avc1.42c01f"';
+    }
+    readyState = "closed";
+    listeners = new Map();
+    addEventListener(type, listener) {
+      this.listeners.set(type, listener);
+      if (type === "sourceopen") {
+        queueMicrotask(() => {
+          this.readyState = "open";
+          listener();
+        });
+      }
+    }
+    addSourceBuffer() { return new FixtureSourceBuffer(); }
+    endOfStream() { streamEnded = true; this.readyState = "ended"; }
+  }
+  class FixtureAbortController extends globalThis.AbortController {
+    abort() { streamAborted = true; super.abort(); }
+  }
   const context = {
     window: {
       matchMedia() { return { matches: osAppearance === "dark" }; },
@@ -261,19 +333,41 @@ function createFixture({
         return records;
       }
     },
-    URL: {
-      createObjectURL() { objectUrlCount += 1; return `blob:fixture-${objectUrlCount}`; },
-      revokeObjectURL(value) { revokedUrls.push(value); },
-    },
+    URL: FixtureUrl,
     Blob,
     Uint8Array,
     atob,
-    setInterval: () => 1,
+    setInterval: (_, delay) => { intervalDelay = delay; return 1; },
     clearInterval: () => {},
     setTimeout: () => 2,
     clearTimeout: () => {},
     getComputedStyle() { return { colorScheme: computedColorScheme }; },
   };
+  if (streamFixture) {
+    const chunks = streamFixture.chunks.map((chunk) => new Uint8Array(chunk));
+    context.MediaSource = FixtureMediaSource;
+    context.AbortController = FixtureAbortController;
+    context.fetch = async (url) => {
+      streamFetchUrl = url;
+      if (streamFixture.error) throw new Error(streamFixture.error);
+      let index = 0;
+      return {
+        ok: true,
+        status: 200,
+        body: {
+          getReader() {
+            return {
+              async read() {
+                if (index >= chunks.length) return { done: true, value: undefined };
+                return { done: false, value: chunks[index++] };
+              },
+              async cancel() {},
+            };
+          },
+        },
+      };
+    };
+  }
   if (analysisFixture) {
     context.Image = class {
       naturalWidth = analysisFixture.naturalWidth;
@@ -288,6 +382,14 @@ function createFixture({
     observers,
     rootClasses,
     rootStyles,
+    get styleWriteCount() { return styleWriteCount; },
+    get intervalDelay() { return intervalDelay; },
+    get mediaPlayCount() { return mediaPlayCount; },
+    get mediaPauseCount() { return mediaPauseCount; },
+    get streamAppendCount() { return streamAppendCount; },
+    get streamFetchUrl() { return streamFetchUrl; },
+    get streamAborted() { return streamAborted; },
+    get streamEnded() { return streamEnded; },
     revokedUrls,
     routeClasses,
     shellMainClasses,
@@ -311,6 +413,19 @@ assert.equal(main.rootClasses.has("dream-theme-dark"), true);
 assert.equal(main.rootClasses.has("dream-art-standard"), true);
 assert.equal(main.rootClasses.has("dream-task-ambient"), true);
 assert.equal(main.routeClasses.has("dream-task"), true);
+assert.equal(main.intervalDelay, 15000,
+  "The periodic recovery pass must stay infrequent enough to avoid regular UI scans.");
+assert.equal(main.observers.length, 2);
+assert.equal(main.observers[0].options.attributes, undefined,
+  "The subtree observer must not subscribe to high-frequency class mutations.");
+assert.equal(main.observers[0].options.childList, true);
+assert.equal(main.observers[1].target, main.context.document.documentElement);
+assert.equal(main.observers[1].options.attributes, true,
+  "Appearance changes should be observed only on the document root.");
+const initialStyleWriteCount = main.styleWriteCount;
+main.context.window.__CODEX_DREAM_SKIN_STATE__.ensure();
+assert.equal(main.styleWriteCount, initialStyleWriteCount,
+  "An unchanged ensure pass must not invalidate root styles.");
 assert.equal(main.context.window.__CODEX_DREAM_SKIN_STATE__.cleanup(), true);
 assert.equal(main.rootClasses.has("codex-dream-skin"), false);
 assert.equal(main.rootClasses.has("dream-theme-dark"), false);
@@ -469,9 +584,18 @@ assert.equal(videoTheme.nodes.has("codex-dream-skin-media"), true);
 assert.equal(videoTheme.nodes.get("codex-dream-skin-media").muted, true);
 assert.equal(videoTheme.nodes.get("codex-dream-skin-media").loop, true);
 assert.equal(videoTheme.nodes.get("codex-dream-skin-media").paused, false);
+const initialMediaPlayCount = videoTheme.mediaPlayCount;
+videoState.ensure();
+assert.equal(videoTheme.mediaPlayCount, initialMediaPlayCount,
+  "An unchanged ensure pass must not call play() again for an already playing video.");
+assert.equal(videoState.setWallpaperReveal(0), 0);
+assert.equal(videoTheme.rootStyles.get("--dream-wallpaper-cover"), "100%");
+assert.equal(videoTheme.nodes.get("codex-dream-skin-media").paused, true,
+  "A fully covered dynamic wallpaper must stop decoding invisible frames.");
 assert.equal(videoState.setWallpaperReveal(0.25), 0.25);
 assert.equal(videoTheme.rootStyles.get("--dream-wallpaper-reveal"), "0.25");
 assert.equal(videoTheme.rootStyles.get("--dream-wallpaper-cover"), "75%");
+assert.equal(videoTheme.nodes.get("codex-dream-skin-media").paused, false);
 assert.equal(videoState.setWallpaperReveal(2), null);
 videoTheme.setDocumentHidden(true);
 assert.equal(videoTheme.nodes.get("codex-dream-skin-media").paused, true);
@@ -481,5 +605,65 @@ assert.equal(videoTheme.rootStyles.get("--dream-art"), "none");
 assert.equal(videoState.cleanup(), true);
 assert.equal(videoTheme.nodes.has("codex-dream-skin-media"), false);
 assert.deepEqual(videoTheme.revokedUrls, ["blob:fixture-1"]);
+
+const streamUrl = "http://127.0.0.1:17866/1234567890abcdef1234567890abcdef/stream.mp4";
+const sceneStream = createFixture({
+  shellPresent: true,
+  streamFixture: { chunks: [[0, 0, 0, 24], [102, 116, 121, 112]] },
+});
+vm.runInNewContext(buildPayload({
+  media: {
+    type: "video",
+    mime: "video/mp4",
+    streamUrl,
+    codec: "avc1.42c01f",
+    opacity: 1,
+  },
+  artMetadata: { ratio: 16 / 9 },
+}, ""), sceneStream.context);
+for (let index = 0; index < 8; index += 1) await new Promise((resolve) => setImmediate(resolve));
+const sceneStreamState = sceneStream.context.window.__CODEX_DREAM_SKIN_STATE__;
+assert.equal(sceneStreamState.config.streamUrl, streamUrl);
+assert.equal(sceneStream.streamFetchUrl, streamUrl);
+assert.equal(sceneStream.streamAppendCount, 2);
+assert.equal(sceneStream.streamEnded, true);
+assert.equal(sceneStreamState.streamStats.status, "ended");
+assert.equal(sceneStreamState.streamStats.chunks, 2);
+assert.equal(sceneStreamState.streamStats.bytes, 8);
+assert.equal(sceneStreamState.streamStats.error, null);
+assert.equal(sceneStream.nodes.get("codex-dream-skin-media").loop, false,
+  "A continuous scene stream must not loop the MediaSource URL.");
+assert.equal(sceneStreamState.cleanup(), true);
+assert.equal(sceneStream.streamAborted, true);
+
+const failedStream = createFixture({
+  shellPresent: true,
+  streamFixture: { chunks: [], error: "Refused to connect by Content Security Policy" },
+});
+vm.runInNewContext(buildPayload({
+  media: {
+    type: "video",
+    mime: "video/mp4",
+    streamUrl,
+    codec: "avc1.42c01f",
+  },
+}, ""), failedStream.context);
+for (let index = 0; index < 4; index += 1) await new Promise((resolve) => setImmediate(resolve));
+const failedStreamStats = failedStream.context.window.__CODEX_DREAM_SKIN_STATE__.streamStats;
+assert.equal(failedStreamStats.status, "error");
+assert.equal(failedStreamStats.error, "Refused to connect by Content Security Policy");
+
+const remoteStream = createFixture({ shellPresent: true, streamFixture: { chunks: [] } });
+vm.runInNewContext(buildPayload({
+  media: {
+    type: "video",
+    mime: "video/mp4",
+    streamUrl: "http://192.168.1.5:17866/1234567890abcdef1234567890abcdef/stream.mp4",
+  },
+}, ""), remoteStream.context);
+await new Promise((resolve) => setImmediate(resolve));
+assert.equal(remoteStream.context.window.__CODEX_DREAM_SKIN_STATE__.config.streamUrl, null);
+assert.equal(remoteStream.streamFetchUrl, null,
+  "Renderer defense-in-depth must reject non-loopback stream URLs.");
 
 console.log("PASS: renderer applies adaptive theme metadata and preserves transparent auxiliary windows.");

@@ -21,6 +21,7 @@ Codex 动态壁纸通过本机回环 CDP 给官方 Codex Windows 桌面应用加
 管理器支持：
 
 - 浏览、搜索并预览桌面壁纸库中的 PNG、JPEG、WebP、MP4 和 WebM。
+- 扫描 Wallpaper Engine 本地 Workshop 中的视频和 `scene.pkg` 场景；Scene 通过独立 GPL-3.0 本地渲染侧车输出回环 fMP4 流，Web 壁纸暂不支持。
 - 一键启动或重新应用动态壁纸、切换壁纸、暂停/恢复以及还原官方外观。
 - 调整「壁纸透出」程度，100% 时视频保持原始画面且整页主题蒙层为零。
 - 系统托盘控制和可选的当前用户开机启动。
@@ -103,7 +104,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-dream-s
 
 导入图片必须是纯背景，不要使用包含窗口、侧栏、输入框、文字或按钮的效果截图。图片上限为 16 MB；宽或高不能超过 16384 像素，总像素不能超过 5000 万。
 
-动态壁纸始终静音、循环且不拦截鼠标操作；Codex 页面隐藏时会自动暂停。视频上限为 128 MB，并通过有界 CDP 分块传入当前 renderer，不会上传到网络，也不会把整段视频嵌入启动脚本。当前 MVP 不提供声音、播放列表或 Live2D。
+动态壁纸始终静音、循环且不拦截鼠标操作；Codex 页面隐藏时会自动暂停。视频上限为 128 MB，并通过有界 CDP 分块传入当前 renderer，不会上传到网络，也不会把整段视频嵌入启动脚本。Wallpaper Engine 的超 1080p 视频在首次应用时会生成本地 1080p 流畅代理，缓存位于 `%LOCALAPPDATA%\CodexDreamSkin\media-cache`；原 Workshop 文件不会被修改，仍会在每次刷新时校验。当前 MVP 不提供声音、播放列表或 Live2D。
+
+Scene 支持目前是开发预览：`SceneViewer.exe` 必须作为独立组件放在 `%LOCALAPPDATA%\CodexDreamSkin\scene-runtime`，并随附 GPL-3.0 许可证与对应源码信息。主程序只通过标准输入和带随机令牌的 `127.0.0.1` HTTP 接口与其通信；不会把 GPL 二进制嵌入 MIT 管理器。发布前仍需完成独立侧车包、源码提供说明和更多场景兼容性验证。
 
 ## 恢复与卸载快捷方式
 

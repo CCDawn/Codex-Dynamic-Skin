@@ -16,10 +16,23 @@ $project = Join-Path $PSScriptRoot 'CodexDreamSkin.Manager\CodexDreamSkin.Manage
 
 function Get-ManagerDotNet {
   $installed = Get-Command dotnet.exe -ErrorAction SilentlyContinue
+  $candidates = @()
   if ($null -ne $installed) {
-    $sdks = & $installed.Source --list-sdks
+    $candidates += $installed.Source
+  }
+
+  foreach ($programFiles in @(
+      [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::ProgramFiles),
+      [System.Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) {
+    $candidates += Join-Path $programFiles 'dotnet\dotnet.exe'
+  }
+
+  foreach ($candidate in $candidates | Select-Object -Unique) {
+    if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
+    $sdks = & $candidate --list-sdks
     if (@($sdks | Where-Object { $_ -match '^8\.' }).Count -gt 0) {
-      return $installed.Source
+      return $candidate
     }
   }
 

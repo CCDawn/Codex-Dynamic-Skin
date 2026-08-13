@@ -7,6 +7,21 @@ internal enum WallpaperKind
 {
   Image,
   Video,
+  Scene,
+}
+
+internal enum WallpaperSource
+{
+  Library,
+  WallpaperEngine,
+}
+
+internal sealed class WallpaperEngineReference
+{
+  public string WorkshopId { get; set; } = string.Empty;
+  public string WorkshopRoot { get; set; } = string.Empty;
+  public string RelativePath { get; set; } = string.Empty;
+  public string Name { get; set; } = string.Empty;
 }
 
 internal sealed record WallpaperItem(
@@ -15,12 +30,58 @@ internal sealed record WallpaperItem(
   string Extension,
   WallpaperKind Kind,
   long Length,
-  DateTime LastWriteTime)
+  DateTime LastWriteTime,
+  WallpaperSource Source = WallpaperSource.Library,
+  WallpaperEngineReference? WallpaperEngineReference = null)
 {
-  public string TypeLabel => Kind == WallpaperKind.Video ? "动态壁纸" : "静态壁纸";
+  public string TypeLabel => Kind switch
+  {
+    WallpaperKind.Video => "动态壁纸",
+    WallpaperKind.Scene => "场景壁纸",
+    _ => "静态壁纸",
+  };
+  public string SourceLabel => Source == WallpaperSource.WallpaperEngine
+    ? $"Wallpaper Engine · {TypeLabel}"
+    : TypeLabel;
   public string SizeLabel => Length >= 1024L * 1024L
     ? $"{Length / 1024d / 1024d:0.#} MB"
     : $"{Math.Max(1, Length / 1024d):0} KB";
+}
+
+internal sealed record SavedTheme(string Id, string Name, WallpaperKind Kind)
+{
+  public string TypeLabel => Kind switch
+  {
+    WallpaperKind.Video => "动态壁纸",
+    WallpaperKind.Scene => "场景壁纸",
+    _ => "静态壁纸",
+  };
+
+  public override string ToString() => $"{Name} · {TypeLabel}";
+}
+
+internal sealed record WallpaperEngineItem(
+  string WorkshopId,
+  string Name,
+  string WorkshopRoot,
+  string ProjectDirectory,
+  string RelativePath,
+  string MediaPath,
+  WallpaperKind Kind,
+  long Length)
+{
+  public string TypeLabel => Kind switch
+  {
+    WallpaperKind.Video => "动态壁纸",
+    WallpaperKind.Scene => "场景壁纸",
+    _ => "静态壁纸",
+  };
+
+  public string SizeLabel => Length >= 1024L * 1024L
+    ? $"{Length / 1024d / 1024d:0.#} MB"
+    : $"{Math.Max(1, Length / 1024d):0} KB";
+
+  public override string ToString() => $"{Name} · {TypeLabel} · {SizeLabel}";
 }
 
 internal sealed record DreamSkinStatus(
@@ -55,6 +116,7 @@ internal sealed class AppSettings
 {
   public string LibraryPath { get; set; } = SettingsStore.DefaultLibraryPath;
   public bool StartWithWindows { get; set; }
+  public List<WallpaperEngineReference> WallpaperEngineImports { get; set; } = new();
 }
 
 internal sealed class SettingsStore
@@ -94,6 +156,7 @@ internal sealed class SettingsStore
       {
         settings.LibraryPath = DefaultLibraryPath;
       }
+      settings.WallpaperEngineImports ??= new List<WallpaperEngineReference>();
       return settings;
     }
     catch

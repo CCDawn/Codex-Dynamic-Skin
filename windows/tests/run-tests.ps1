@@ -639,6 +639,24 @@ try {
     -not (Test-DreamSkinThemePathWithin -Path $updatedTheme.ImagePath -Root $themePaths.Active)) {
     throw 'Imported image did not reset to the generic adaptive contract inside the managed directory.'
   }
+  $activeMediaBeforeSchemaReject = @(
+    Get-ChildItem -LiteralPath $themePaths.Active -File | Select-Object -ExpandProperty Name | Sort-Object
+  )
+  $unsupportedInputThemeRejected = $false
+  try {
+    $null = Set-DreamSkinActiveTheme -ImagePath (Join-Path $Root 'assets\dream-reference.jpg') `
+      -Theme ([pscustomobject]@{ schemaVersion = 2; id = 'unsupported'; image = 'ignored.jpg' }) `
+      -StateRoot $themeStateRoot
+  } catch {
+    $unsupportedInputThemeRejected = $true
+  }
+  $activeMediaAfterSchemaReject = @(
+    Get-ChildItem -LiteralPath $themePaths.Active -File | Select-Object -ExpandProperty Name | Sort-Object
+  )
+  if (-not $unsupportedInputThemeRejected -or
+    (@($activeMediaBeforeSchemaReject) -join '|') -cne (@($activeMediaAfterSchemaReject) -join '|')) {
+    throw 'A non-v1 caller theme changed active media before being rejected.'
+  }
   $opacityTheme = Set-DreamSkinActiveThemeMediaOpacity -Opacity 0.42 -StateRoot $themeStateRoot
   if ([math]::Abs((Get-DreamSkinThemeMediaOpacity -Theme $opacityTheme.Theme) - 0.42) -gt 0.000001) {
     throw 'Active theme opacity was not persisted.'
@@ -697,6 +715,173 @@ try {
   if ($restoredVideoTheme.Theme.media.type -cne 'video') {
     throw 'Saved dynamic theme did not preserve its media contract.'
   }
+
+  $managerCommandPath = Join-Path $Root 'scripts\manager-command.ps1'
+  function Invoke-DreamSkinManagerCommandForTest {
+    param([Parameter(Mandatory = $true)][string[]]$Arguments)
+    $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $managerCommandPath @Arguments 2>&1
+    if ($LASTEXITCODE -ne 0) {
+      throw "Manager command failed: $($output -join [Environment]::NewLine)"
+    }
+    return (($output -join [Environment]::NewLine) | ConvertFrom-Json -ErrorAction Stop)
+  }
+  $newManagerStateRoot = Join-Path $temporaryRoot 'new-manager-state'
+  $managerSeededThemes = Invoke-DreamSkinManagerCommandForTest -Arguments @(
+    '-Action', 'ListThemes', '-StateRoot', $newManagerStateRoot
+  )
+  if (@($managerSeededThemes.themes).Count -ne 1 -or
+    $managerSeededThemes.themes[0].id -cne 'preset-romantic-rose') {
+    throw 'Manager command did not initialize a new theme store before listing saved themes.'
+  }
+  $managerSavedThemes = Invoke-DreamSkinManagerCommandForTest -Arguments @(
+    '-Action', 'ListThemes', '-StateRoot', $themeStateRoot
+  )
+  if ($managerSavedThemes.action -cne 'ListThemes' -or
+    @($managerSavedThemes.themes).Count -ne 3 -or
+    @($managerSavedThemes.themes | Where-Object { $_.mediaType -ceq 'video' }).Count -lt 1) {
+    throw 'Manager command did not list saved static and dynamic themes.'
+  }
+  $managerSavedTheme = Invoke-DreamSkinManagerCommandForTest -Arguments @(
+    '-Action', 'SaveTheme', '-Name', '管理器保存的动态主题', '-StateRoot', $themeStateRoot
+  )
+  if ($managerSavedTheme.action -cne 'SaveTheme' -or
+    $managerSavedTheme.name -cne '管理器保存的动态主题' -or
+    $managerSavedTheme.mediaType -cne 'video' -or -not $managerSavedTheme.themeId) {
+    throw 'Manager command did not save the active dynamic theme.'
+  }
+  $managerAppliedTheme = Invoke-DreamSkinManagerCommandForTest -Arguments @(
+    '-Action', 'UseTheme', '-ThemeId', "$($managerSavedTheme.themeId)", '-StateRoot', $themeStateRoot
+  )
+  if ($managerAppliedTheme.action -cne 'UseTheme' -or
+    $managerAppliedTheme.themeId -cne $managerSavedTheme.themeId -or
+    $managerAppliedTheme.mediaType -cne 'video' -or
+    (Read-DreamSkinTheme -ThemeDirectory $themePaths.Active).Theme.id -cne $managerSavedTheme.themeId) {
+    throw 'Manager command did not apply the selected saved dynamic theme.'
+  }
+
+  $steamLibrary = Join-Path $temporaryRoot 'Steam Library'
+  $wallpaperEngineContent = Join-Path $steamLibrary 'steamapps\workshop\content\431960'
+  $wallpaperEngineItem = Join-Path $wallpaperEngineContent '1234567890'
+  New-Item -ItemType Directory -Path $wallpaperEngineItem -Force | Out-Null
+  $wallpaperEngineVideo = Join-Path $wallpaperEngineItem 'wallpaper.mp4'
+  Copy-Item -LiteralPath $videoFixture -Destination $wallpaperEngineVideo
+  Write-DreamSkinUtf8FileAtomically -Path (Join-Path $wallpaperEngineItem 'project.json') -Content @'
+{"type":"video","file":"wallpaper.mp4","title":"本地动态壁纸"}
+'@
+  $referencedTheme = Set-DreamSkinActiveWallpaperEngineTheme -ProjectDirectory $wallpaperEngineItem `
+    -Name 'Wallpaper Engine 本地引用' -StateRoot $themeStateRoot
+  if ($referencedTheme.MediaPath -cne [System.IO.Path]::GetFullPath($wallpaperEngineVideo) -or
+    $referencedTheme.Theme.media.source -cne 'wallpaper-engine-local' -or
+    $referencedTheme.Theme.media.workshopId -cne '1234567890' -or
+    $referencedTheme.Theme.media.relativePath -cne 'wallpaper.mp4' -or
+    (Test-Path -LiteralPath (Join-Path $themePaths.Active 'wallpaper.mp4'))) {
+    throw 'Wallpaper Engine video was not retained as a direct local reference.'
+  }
+  New-Item -ItemType Directory -Path $themePaths.MediaCache -Force | Out-Null
+  $performanceProxy = Join-Path $themePaths.MediaCache '1234567890-test-1080p.mp4'
+  Copy-Item -LiteralPath $videoFixture -Destination $performanceProxy
+  $referencedTheme.Theme.media | Add-Member -NotePropertyName proxy `
+    -NotePropertyValue 'media-cache/1234567890-test-1080p.mp4' -Force
+  Write-DreamSkinTheme -ThemeDirectory $themePaths.Active -Theme $referencedTheme.Theme
+  $referencedTheme = Read-DreamSkinTheme -ThemeDirectory $themePaths.Active
+  if ($referencedTheme.ImagePath -cne [System.IO.Path]::GetFullPath($wallpaperEngineVideo) -or
+    $referencedTheme.MediaPath -cne [System.IO.Path]::GetFullPath($performanceProxy)) {
+    throw 'Wallpaper Engine performance proxy did not preserve its original existence reference.'
+  }
+  $savedReferencedTheme = Save-DreamSkinCurrentTheme -Name '保存的本地引用' -StateRoot $themeStateRoot
+  if ($savedReferencedTheme.Theme.media.source -cne 'wallpaper-engine-local' -or
+    (Test-Path -LiteralPath (Join-Path $savedReferencedTheme.Directory 'wallpaper.mp4'))) {
+    throw 'Saving a Wallpaper Engine reference copied its media instead of preserving the mapping.'
+  }
+  $restoredReferencedTheme = Use-DreamSkinSavedTheme -ThemeDirectory $savedReferencedTheme.Directory `
+    -StateRoot $themeStateRoot
+  if ($restoredReferencedTheme.ImagePath -cne [System.IO.Path]::GetFullPath($wallpaperEngineVideo) -or
+    $restoredReferencedTheme.MediaPath -cne [System.IO.Path]::GetFullPath($performanceProxy) -or
+    $restoredReferencedTheme.Theme.media.source -cne 'wallpaper-engine-local') {
+    throw 'Saved Wallpaper Engine reference did not restore its source and performance proxy.'
+  }
+  $unsafeWallpaperEngineItem = Join-Path $wallpaperEngineContent '9876543210'
+  New-Item -ItemType Directory -Path $unsafeWallpaperEngineItem -Force | Out-Null
+  Write-DreamSkinUtf8FileAtomically -Path (Join-Path $unsafeWallpaperEngineItem 'project.json') -Content @'
+{"type":"video","file":"..\\wallpaper.mp4"}
+'@
+  $unsafeWallpaperEngineRejected = $false
+  try {
+    $null = Set-DreamSkinActiveWallpaperEngineTheme -ProjectDirectory $unsafeWallpaperEngineItem `
+      -StateRoot $themeStateRoot
+  } catch {
+    $unsafeWallpaperEngineRejected = $true
+  }
+  if (-not $unsafeWallpaperEngineRejected) {
+    throw 'Wallpaper Engine mapping accepted a project media path that escaped its Workshop item directory.'
+  }
+  $sceneWallpaperEngineItem = Join-Path $wallpaperEngineContent '2468013579'
+  $sceneVideoDirectory = Join-Path $sceneWallpaperEngineItem 'assets'
+  New-Item -ItemType Directory -Path $sceneVideoDirectory -Force | Out-Null
+  $sceneVideo = Join-Path $sceneVideoDirectory 'loop.webm'
+  [System.IO.File]::WriteAllBytes($sceneVideo, [byte[]](0x1a, 0x45, 0xdf, 0xa3, 0x42, 0x86, 0x81, 0x01))
+  Write-DreamSkinUtf8FileAtomically -Path (Join-Path $sceneWallpaperEngineItem 'project.json') -Content @'
+{"type":"scene","title":"场景中的独立视频"}
+'@
+  $managerWallpaperEngineItems = Invoke-DreamSkinManagerCommandForTest -Arguments @(
+    '-Action', 'ListWallpaperEngine', '-SteamLibraryPath', $steamLibrary, '-StateRoot', $themeStateRoot
+  )
+  if ($managerWallpaperEngineItems.action -cne 'ListWallpaperEngine' -or
+    @($managerWallpaperEngineItems.items).Count -ne 1 -or
+    @($managerWallpaperEngineItems.items | Where-Object { $_.workshopId -ceq '1234567890' }).Count -ne 1 -or
+    @($managerWallpaperEngineItems.items | Where-Object {
+      $_.workshopId -ceq '2468013579'
+    }).Count -ne 0) {
+    throw 'Wallpaper Engine discovery listed an embedded Scene/Web video instead of one directly playable video project.'
+  }
+  $steamInstall = Join-Path $temporaryRoot 'Steam Install'
+  New-Item -ItemType Directory -Path (Join-Path $steamInstall 'steamapps') -Force | Out-Null
+  $escapedSteamLibrary = $steamLibrary.Replace('\', '\\')
+  Write-DreamSkinUtf8FileAtomically -Path (Join-Path $steamInstall 'steamapps\libraryfolders.vdf') -Content @"
+"libraryfolders"
+{
+  "1"
+  {
+    "path" "$escapedSteamLibrary"
+  }
+}
+"@
+  $managerLibraryFolderItems = Invoke-DreamSkinManagerCommandForTest -Arguments @(
+    '-Action', 'ListWallpaperEngine', '-SteamLibraryPath', $steamInstall, '-StateRoot', $themeStateRoot
+  )
+  if (@($managerLibraryFolderItems.items).Count -ne 1 -or
+    @($managerLibraryFolderItems.items | Where-Object { $_.workshopId -ceq '1234567890' }).Count -ne 1) {
+    throw 'Wallpaper Engine discovery did not resolve a secondary Steam library from libraryfolders.vdf.'
+  }
+  $managerWallpaperEngineTheme = Invoke-DreamSkinManagerCommandForTest -Arguments @(
+    '-Action', 'UseWallpaperEngine', '-Path', $sceneVideo, '-StateRoot', $themeStateRoot
+  )
+  if ($managerWallpaperEngineTheme.action -cne 'UseWallpaperEngine' -or
+    $managerWallpaperEngineTheme.mediaPath -cne [System.IO.Path]::GetFullPath($sceneVideo) -or
+    (Read-DreamSkinTheme -ThemeDirectory $themePaths.Active).Theme.media.source -cne 'wallpaper-engine-local') {
+    throw 'Manager command did not apply a Wallpaper Engine item as a direct local reference.'
+  }
+
+  $unsupportedSchemaTheme = Join-Path $temporaryRoot 'unsupported-schema-theme'
+  New-Item -ItemType Directory -Path $unsupportedSchemaTheme | Out-Null
+  Copy-Item -LiteralPath $videoFixture -Destination (Join-Path $unsupportedSchemaTheme 'loop.mp4')
+  Write-DreamSkinUtf8FileAtomically -Path (Join-Path $unsupportedSchemaTheme 'theme.json') `
+    -Content "{`"schemaVersion`":2,`"image`":`"loop.mp4`",`"media`":{`"type`":`"video`"}}`r`n"
+  $unsupportedSchemaRejected = $false
+  try { $null = Read-DreamSkinTheme -ThemeDirectory $unsupportedSchemaTheme } catch {
+    $unsupportedSchemaRejected = $true
+  }
+  if (-not $unsupportedSchemaRejected) { throw 'Theme schema versions other than 1 must be rejected.' }
+  $nonIntegralSchemaTheme = Join-Path $temporaryRoot 'non-integral-schema-theme'
+  New-Item -ItemType Directory -Path $nonIntegralSchemaTheme | Out-Null
+  Copy-Item -LiteralPath $videoFixture -Destination (Join-Path $nonIntegralSchemaTheme 'loop.mp4')
+  Write-DreamSkinUtf8FileAtomically -Path (Join-Path $nonIntegralSchemaTheme 'theme.json') `
+    -Content "{`"schemaVersion`":1.1,`"image`":`"loop.mp4`",`"media`":{`"type`":`"video`"}}`r`n"
+  $nonIntegralSchemaRejected = $false
+  try { $null = Read-DreamSkinTheme -ThemeDirectory $nonIntegralSchemaTheme } catch {
+    $nonIntegralSchemaRejected = $true
+  }
+  if (-not $nonIntegralSchemaRejected) { throw 'A non-integer theme schemaVersion was accepted as version 1.' }
   $fakeVideo = Join-Path $temporaryRoot 'fake.mp4'
   [System.IO.File]::WriteAllText($fakeVideo, 'not an mp4')
   $fakeVideoRejected = $false
@@ -778,13 +963,13 @@ try {
     '--dream-immersive-composer',
     'background-position: var(--dream-art-position)',
     '.dream-home-utility',
-    ':has(.dream-home-utility) .composer-surface-chrome',
-    ':is(.dream-task-ambient, .dream-task-banner):has(main.main-surface:not(.dream-home-shell))'
+    '.dream-home-utility-present .dream-home .composer-surface-chrome',
+    '.dream-route-task:is(.dream-task-ambient, .dream-task-banner)'
   )) {
     if (-not $css.Contains($requiredCss)) { throw "Windows immersive CSS is missing: $requiredCss" }
   }
+  if ($css.Contains(':has(')) { throw 'Windows immersive CSS must not use global reverse selectors.' }
 
-  $managerCommandPath = Join-Path $Root 'scripts\manager-command.ps1'
   $managerBuildPath = Join-Path $Root 'app\build-manager.ps1'
   $managerProjectPath = Join-Path $Root 'app\CodexDreamSkin.Manager\CodexDreamSkin.Manager.csproj'
   foreach ($managerPath in @($managerCommandPath, $managerBuildPath, $managerProjectPath)) {
@@ -803,7 +988,10 @@ try {
     }
   }
   $managerCommandSource = Read-DreamSkinUtf8File -Path $managerCommandPath
-  foreach ($managerAction in @('SetWallpaper', 'SetReveal', 'Pause', 'Resume', 'Status')) {
+  foreach ($managerAction in @(
+    'SetWallpaper', 'SetReveal', 'Pause', 'Resume', 'Status', 'ListThemes', 'SaveTheme', 'UseTheme',
+    'ListWallpaperEngine', 'UseWallpaperEngine'
+  )) {
     if (-not $managerCommandSource.Contains("'$managerAction'")) {
       throw "Graphical manager command is missing: $managerAction"
     }
@@ -828,13 +1016,54 @@ try {
     'Multiselect = true',
     '当前壁纸：{status.CurrentWallpaperLabel}',
     '暂无壁纸 · 点击左侧「添加壁纸」导入',
-    '100% · 原始壁纸画面',
+    '0% · 完全不透明',
+    '100% · 完全透明（原始壁纸）',
     '开机启动管理器',
     '退出管理器',
     '支持 PNG、JPEG、WebP、MP4、WebM'
   )) {
     if (-not $managerFormSource.Contains($managerUiContract)) {
       throw "Graphical manager UI contract is missing: $managerUiContract"
+    }
+  }
+  $savedThemesDialogPath = Join-Path $Root 'app\CodexDreamSkin.Manager\SavedThemesDialog.cs'
+  if (-not (Test-Path -LiteralPath $savedThemesDialogPath -PathType Leaf)) {
+    throw 'Graphical manager saved-theme dialog is missing.'
+  }
+  $savedThemesDialogSource = Read-DreamSkinUtf8File -Path $savedThemesDialogPath
+  foreach ($savedThemesUiContract in @(
+    '已保存主题',
+    '保存当前主题',
+    '应用主题',
+    'ListSavedThemesAsync',
+    'SaveCurrentThemeAsync',
+    'ApplySavedThemeAsync',
+    'AccessibleName'
+  )) {
+    if (-not $savedThemesDialogSource.Contains($savedThemesUiContract)) {
+      throw "Graphical manager saved-theme UI contract is missing: $savedThemesUiContract"
+    }
+  }
+  foreach ($mainFormThemeContract in @('_themesButton', 'ShowSavedThemes')) {
+    if (-not $managerFormSource.Contains($mainFormThemeContract)) {
+      throw "Graphical manager does not expose saved themes from its main window: $mainFormThemeContract"
+    }
+  }
+  foreach ($mainFormWallpaperEngineContract in @('_wallpaperEngineButton', 'ShowWallpaperEngine')) {
+    if (-not $managerFormSource.Contains($mainFormWallpaperEngineContract)) {
+      throw "Graphical manager does not expose locally downloaded Wallpaper Engine videos: $mainFormWallpaperEngineContract"
+    }
+  }
+  $wallpaperEngineDialogPath = Join-Path $Root 'app\CodexDreamSkin.Manager\WallpaperEngineDialog.cs'
+  if (-not (Test-Path -LiteralPath $wallpaperEngineDialogPath -PathType Leaf)) {
+    throw 'Graphical manager Wallpaper Engine dialog is missing.'
+  }
+  $wallpaperEngineDialogSource = Read-DreamSkinUtf8File -Path $wallpaperEngineDialogPath
+  foreach ($wallpaperEngineUiContract in @(
+    'Wallpaper Engine', 'ListWallpaperEngineAsync', '导入到主页', 'SelectionMode.MultiExtended', 'ImportedItems', 'AccessibleName'
+  )) {
+    if (-not $wallpaperEngineDialogSource.Contains($wallpaperEngineUiContract)) {
+      throw "Graphical manager Wallpaper Engine UI contract is missing: $wallpaperEngineUiContract"
     }
   }
   $managerModelSource = Read-DreamSkinUtf8File -Path (
@@ -847,6 +1076,67 @@ try {
   )) {
     if (-not $managerModelSource.Contains($managerStatusContract)) {
       throw "Graphical manager status contract is missing: $managerStatusContract"
+    }
+  }
+  $managerServiceSource = Read-DreamSkinUtf8File -Path (
+    Join-Path $Root 'app\CodexDreamSkin.Manager\DreamSkinService.cs'
+  )
+  foreach ($managerThemeContract in @(
+    'ListSavedThemesAsync',
+    'SaveCurrentThemeAsync',
+    'ApplySavedThemeAsync',
+    'ListWallpaperEngineAsync',
+    'ApplyWallpaperEngineAsync',
+    'ListThemes', 'ListWallpaperEngine', 'UseWallpaperEngine',
+    'SaveTheme',
+    'UseTheme'
+  )) {
+    if (-not $managerServiceSource.Contains($managerThemeContract)) {
+      throw "Graphical manager saved-theme service contract is missing: $managerThemeContract"
+    }
+  }
+  foreach ($restartContract in @(
+    'ConfirmCodexRestart',
+    'arguments.Add("-RestartExisting")',
+    'arguments.Add("-ForceRestart")'
+  )) {
+    if (-not $managerServiceSource.Contains($restartContract)) {
+      throw "Graphical manager restart confirmation contract is missing: $restartContract"
+    }
+  }
+  if ($managerServiceSource.Contains('"-PromptRestart"')) {
+    throw 'Graphical manager still delegates restart confirmation to a hidden PowerShell process.'
+  }
+  $powerShellRunnerSource = Read-DreamSkinUtf8File -Path (
+    Join-Path $Root 'app\CodexDreamSkin.Manager\PowerShellRunner.cs'
+  )
+  if (-not $powerShellRunnerSource.Contains('process.Kill(entireProcessTree: true)')) {
+    throw 'Graphical manager cancellation can still orphan a PowerShell process tree.'
+  }
+  $managerReferenceCatalogPath = Join-Path $Root 'app\CodexDreamSkin.Manager\WallpaperEngineReferenceCatalog.cs'
+  if (-not (Test-Path -LiteralPath $managerReferenceCatalogPath -PathType Leaf)) {
+    throw 'Graphical manager Wallpaper Engine reference catalog is missing.'
+  }
+  $managerReferenceCatalogSource = Read-DreamSkinUtf8File -Path $managerReferenceCatalogPath
+  foreach ($referenceCatalogContract in @(
+    'ResolveAndPrune', 'AddImports', 'steamapps', 'workshop', '431960'
+  )) {
+    if (-not $managerReferenceCatalogSource.Contains($referenceCatalogContract)) {
+      throw "Wallpaper Engine reference catalog is missing: $referenceCatalogContract"
+    }
+  }
+  foreach ($managerReferenceContract in @(
+    'WallpaperEngineImports', 'WallpaperEngineReference', 'WallpaperSource', 'SourceLabel'
+  )) {
+    if (-not $managerModelSource.Contains($managerReferenceContract)) {
+      throw "Graphical manager Wallpaper Engine persistence model is missing: $managerReferenceContract"
+    }
+  }
+  foreach ($mainFormReferenceContract in @(
+    'ShowWallpaperEngineAsync', 'AddImports', 'ResolveAndPrune', 'WallpaperSource.WallpaperEngine'
+  )) {
+    if (-not $managerFormSource.Contains($mainFormReferenceContract)) {
+      throw "Graphical manager does not persist or refresh Wallpaper Engine references: $mainFormReferenceContract"
     }
   }
 
@@ -901,6 +1191,10 @@ try {
     }
   }
   $injectorSource = Read-DreamSkinUtf8File -Path (Join-Path $Root 'scripts\injector.mjs')
+  if (-not $injectorSource.Contains('Page.setBypassCSP') -or
+    -not $injectorSource.Contains('setStreamCspBypass(session, false)')) {
+    throw 'Scene streaming does not scope and revoke its Codex CSP bypass.'
+  }
   foreach ($requiredInjectorBehavior in @(
     'MAX_ART_BYTES', 'createHash', 'readImageMetadata', '50MP safety limit', 'STRONG_THEME_AUDIT_MS',
     'Page.addScriptToEvaluateOnNewDocument', 'Page.removeScriptToEvaluateOnNewDocument', 'earlyPayloadFor'

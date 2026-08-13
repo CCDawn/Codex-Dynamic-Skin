@@ -156,7 +156,7 @@ bash macos/tests/run-tests.sh
 <details>
 <summary><strong>这是 Wallpaper Engine 的替代品吗？</strong></summary>
 
-不是。它只控制 Codex 应用内部的主题背景。Windows 管理器可以导入普通 MP4/WebM，但不渲染 Wallpaper Engine 的 Scene、Web 或打包项目。
+不是。它只控制 Codex 应用内部的主题背景。Windows 管理器可以扫描并直接引用 Wallpaper Engine 已下载到本地的 `type: video` MP4/WebM 项目；超过 1080p 时会生成本地流畅代理。`type: scene` 的 `scene.pkg` 目前可通过独立 GPL-3.0 侧车进行开发预览；Web 壁纸和项目脚本仍不会执行。
 </details>
 
 <details>

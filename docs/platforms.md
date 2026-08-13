@@ -77,6 +77,7 @@ Windows 启动、失败回滚与恢复重开均从已注册的 `OpenAI.Codex` �
 - macOS 的选图脚本会把这些字段写入主题库，可通过 `--appearance`、`--focus-x`、`--focus-y`、`--safe-area`、`--task-mode` 设置。
 - Windows 安装会把运行所需的 `assets/` 与 `scripts/` 原子复制到 `%LOCALAPPDATA%\CodexDreamSkin\engine`，所有快捷方式均指向该受管副本，因此安装后可移动或删除源码目录。安装还会初始化 `active-theme`、`themes` 与 `images`，并把「桥本有菜」同时设为首次默认和可切换的已保存主题。系统托盘支持更换背景、保存当前主题、从「已保存主题」切换、暂停和恢复；图片与 `theme.json` 保存在主题仓库中，不写进 Codex 的 `config.toml`。安装会保留用户已有的 `appearanceTheme`；仅在识别到旧版精确托管的浅色三元组时按备份迁移。
 - Windows 渲染器仍支持在注入前用 `window.__CODEX_DREAM_SKIN_CONFIG__` 提供内存级可选覆盖（形状同上，颜色覆盖使用 `palette.accent`），但普通用户应优先使用持久化主题仓库与托盘。
+- Windows 管理器的「Wallpaper Engine」入口会扫描用户已经通过 Steam / Wallpaper Engine 下载到本机的 `steamapps\workshop\content\431960` 项目，并读取 Steam 的 `libraryfolders.vdf` 发现第二库。每个 `type: video` 的 MP4/WebM 或 `type: scene` 的 `scene.pkg` Workshop 项目只列出一次；用户可多选导入主页，之后从主页切换。视频继续直接引用或生成本地 1080p 流畅代理；Scene 由独立 GPL-3.0 侧车在本机渲染成 H.264 fragmented MP4，再通过带随机令牌的 `127.0.0.1` HTTP 流交给 Chromium MSE，MIT 主程序不链接或内嵌 GPL 代码。侧车支持多 renderer 客户端和标准输入优雅退出，临时流位于 `%LOCALAPPDATA%\CodexDreamSkin\scene-stream`。Web、脚本壁纸暂不执行。每次启动或刷新主页都会重新校验 Workshop ID、库根目录、相对路径和文件存在性，取消订阅、移动或删除的条目会自动消失。
 
 ## 预设与图片类型
 

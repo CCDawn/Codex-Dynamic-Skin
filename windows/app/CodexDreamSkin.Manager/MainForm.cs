@@ -40,6 +40,8 @@ internal sealed class MainForm : Form
   private readonly Button _startButton = new();
   private readonly Button _importButton = new();
   private readonly Button _pauseButton = new();
+  private readonly Button _themesButton = new();
+  private readonly Button _wallpaperEngineButton = new();
   private readonly Button _applyButton = new();
   private readonly Button _restoreButton = new();
   private readonly TrackBar _revealSlider = new();
@@ -81,6 +83,7 @@ internal sealed class MainForm : Form
     SetDarkTitleBar(Handle);
 
     BuildLayout();
+    _service.ConfirmCodexRestart = ConfirmCodexRestart;
     _trayIcon = BuildTrayIcon();
     _statusTimer.Tick += (_, _) => RefreshStatus();
     _searchTimer.Tick += async (_, _) =>
@@ -93,6 +96,18 @@ internal sealed class MainForm : Form
     {
       _initializing = false;
       _autoStartCheckBox.Checked = AutoStartManager.IsEnabled();
+      try
+      {
+        await _service.RestoreActiveSceneAsync(_lifetime.Token);
+      }
+      catch (OperationCanceledException exception)
+      {
+        ShowMessage(exception.Message, false);
+      }
+      catch (Exception exception)
+      {
+        ShowError(exception);
+      }
       RefreshStatus();
       await ReloadLibraryAsync();
       _statusTimer.Start();
@@ -115,6 +130,7 @@ internal sealed class MainForm : Form
       StopVideoPreview();
       _trayIcon.Dispose();
       _appIcon.Dispose();
+      _service.Dispose();
       _lifetime.Dispose();
       _libraryLoad?.Dispose();
     }
@@ -233,6 +249,22 @@ internal sealed class MainForm : Form
     };
     left.Controls.Add(_pauseButton);
     left.Controls.SetChildIndex(_pauseButton, 0);
+
+    ConfigureButton(_themesButton, "已保存主题", false);
+    _themesButton.Dock = DockStyle.Top;
+    _themesButton.Height = 38;
+    _themesButton.AccessibleName = "管理已保存主题";
+    _themesButton.Click += (_, _) => ShowSavedThemes();
+    left.Controls.Add(_themesButton);
+    left.Controls.SetChildIndex(_themesButton, 0);
+
+    ConfigureButton(_wallpaperEngineButton, "Wallpaper Engine", false);
+    _wallpaperEngineButton.Dock = DockStyle.Top;
+    _wallpaperEngineButton.Height = 38;
+    _wallpaperEngineButton.AccessibleName = "选择本机已下载的 Wallpaper Engine 视频";
+    _wallpaperEngineButton.Click += async (_, _) => await ShowWallpaperEngineAsync();
+    left.Controls.Add(_wallpaperEngineButton);
+    left.Controls.SetChildIndex(_wallpaperEngineButton, 0);
 
     ConfigureButton(_restoreButton, "恢复官方外观", false, danger: true);
     _restoreButton.Dock = DockStyle.Top;
@@ -395,7 +427,7 @@ internal sealed class MainForm : Form
     panel.Controls.Add(_applyButton);
     panel.Controls.SetChildIndex(_applyButton, 0);
 
-    var revealHeading = CreateLabel("壁纸透出", 10f, FontStyle.Bold, TextMuted);
+    var revealHeading = CreateLabel("主题透明度", 10f, FontStyle.Bold, TextMuted);
     revealHeading.Dock = DockStyle.Top;
     revealHeading.Height = 44;
     revealHeading.Padding = new Padding(0, 18, 0, 0);
@@ -405,7 +437,7 @@ internal sealed class MainForm : Form
     _revealLabel.Dock = DockStyle.Top;
     _revealLabel.Height = 28;
     _revealLabel.ForeColor = TextPrimary;
-    _revealLabel.Text = "100% · 原始壁纸画面";
+    _revealLabel.Text = "100% · 完全透明（原始壁纸）";
     panel.Controls.Add(_revealLabel);
     panel.Controls.SetChildIndex(_revealLabel, 0);
 
@@ -417,7 +449,7 @@ internal sealed class MainForm : Form
     _revealSlider.TickFrequency = 10;
     _revealSlider.SmallChange = 5;
     _revealSlider.LargeChange = 10;
-    _revealSlider.AccessibleName = "壁纸透出程度";
+    _revealSlider.AccessibleName = "主题透明度，零为完全不透明，一百为完全透明";
     _revealSlider.Scroll += (_, _) => UpdateRevealLabel();
     _revealSlider.MouseUp += async (_, _) => await CommitRevealAsync();
     _revealSlider.KeyUp += async (_, _) => await CommitRevealAsync();
@@ -443,12 +475,28 @@ internal sealed class MainForm : Form
     _librarySummary.Text = "正在读取壁纸库…";
     try
     {
-      var items = await _catalog.LoadAsync(_settings.LibraryPath, _searchBox.Text, token);
+      var libraryItems = await _catalog.LoadAsync(_settings.LibraryPath, _searchBox.Text, token);
       token.ThrowIfCancellationRequested();
+      var importedItems = WallpaperEngineReferenceCatalog.ResolveAndPrune(
+        _settings.WallpaperEngineImports,
+        _searchBox.Text,
+        out var importsChanged);
+      if (importsChanged)
+      {
+        _settingsStore.Save(_settings);
+      }
+      var items = libraryItems
+        .Concat(importedItems)
+        .GroupBy(item => item.Path, StringComparer.OrdinalIgnoreCase)
+        .Select(group => group.First())
+        .OrderByDescending(item => item.LastWriteTime)
+        .ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
+        .Take(500)
+        .ToArray();
       ClearLibraryCards();
-      _librarySummary.Text = items.Count == 0
+      _librarySummary.Text = items.Length == 0
         ? "暂无壁纸 · 点击左侧「添加壁纸」导入"
-        : $"共 {items.Count} 个可直接使用的壁纸";
+        : $"共 {items.Length} 个可直接使用的壁纸";
 
       foreach (var item in items)
       {
@@ -482,7 +530,8 @@ internal sealed class MainForm : Form
     foreach (var item in items)
     {
       token.ThrowIfCancellationRequested();
-      var thumbnail = await Task.Run(() => ShellThumbnail.Get(item.Path, 280, 170), token);
+      var displayPath = WallpaperEngineReferenceCatalog.GetPreviewPath(item);
+      var thumbnail = await Task.Run(() => ShellThumbnail.Get(displayPath, 280, 170), token);
       if (thumbnail is null)
       {
         continue;
@@ -519,7 +568,7 @@ internal sealed class MainForm : Form
       BackColor = Surface,
       Cursor = Cursors.Hand,
       Tag = item,
-      AccessibleName = $"{item.Name}，{item.TypeLabel}",
+      AccessibleName = $"{item.Name}，{item.SourceLabel}",
     };
     var image = new PictureBox
     {
@@ -536,7 +585,7 @@ internal sealed class MainForm : Form
     title.AutoEllipsis = true;
     title.Cursor = Cursors.Hand;
     card.Controls.Add(title);
-    var meta = CreateLabel($"{item.TypeLabel} · {item.SizeLabel}", 8.5f, FontStyle.Regular, TextMuted);
+    var meta = CreateLabel($"{item.SourceLabel} · {item.SizeLabel}", 8.5f, FontStyle.Regular, TextMuted);
     meta.Location = new Point(10, 162);
     meta.Size = new Size(204, 20);
     meta.Cursor = Cursors.Hand;
@@ -577,7 +626,7 @@ internal sealed class MainForm : Form
     _selectedCard = card;
     card.BackColor = Color.FromArgb(67, 43, 52);
     _selectionTitle.Text = item.Name;
-    _selectionMeta.Text = $"{item.TypeLabel} · {item.Extension} · {item.SizeLabel}";
+    _selectionMeta.Text = $"{item.SourceLabel} · {item.Extension} · {item.SizeLabel}";
     _applyButton.Enabled = !_busy;
     ShowPreview(item);
   }
@@ -599,7 +648,10 @@ internal sealed class MainForm : Form
     {
       _videoHost.Visible = false;
       _previewImage.Visible = true;
-      _previewImage.Image = ShellThumbnail.Get(item.Path, 720, 480);
+      _previewImage.Image = ShellThumbnail.Get(
+        WallpaperEngineReferenceCatalog.GetPreviewPath(item),
+        720,
+        480);
     }
   }
 
@@ -624,7 +676,9 @@ internal sealed class MainForm : Form
     }
     await RunOperationAsync(
       $"正在应用 {_selectedWallpaper.Name}…",
-      () => _service.ApplyWallpaperAsync(_selectedWallpaper.Path, _lifetime.Token),
+      () => _selectedWallpaper.Source == WallpaperSource.WallpaperEngine
+        ? _service.ApplyWallpaperEngineAsync(_selectedWallpaper.Path, _lifetime.Token)
+        : _service.ApplyWallpaperAsync(_selectedWallpaper.Path, _lifetime.Token),
       $"已应用：{_selectedWallpaper.Name}");
   }
 
@@ -632,9 +686,14 @@ internal sealed class MainForm : Form
   {
     var value = _revealSlider.Value;
     await RunOperationAsync(
-      $"正在设置壁纸透出 {value}%…",
+      $"正在设置主题透明度 {value}%…",
       () => _service.SetRevealAsync(value, _lifetime.Token),
-      value == 100 ? "壁纸已按原始画面显示。" : $"壁纸透出已设为 {value}%。",
+      value switch
+      {
+        0 => "主题已完全不透明。",
+        100 => "主题已完全透明，正在显示原始壁纸画面。",
+        _ => $"主题透明度已设为 {value}%。"
+      },
       refreshLibrary: false);
   }
 
@@ -656,6 +715,36 @@ internal sealed class MainForm : Form
       () => _service.RestoreAsync(_lifetime.Token),
       "已恢复 Codex 官方外观。",
       refreshLibrary: false);
+  }
+
+  private void ShowSavedThemes()
+  {
+    using var dialog = new SavedThemesDialog(_service, _lifetime.Token);
+    dialog.ShowDialog(this);
+    if (dialog.LastAppliedTheme is not null)
+    {
+      ShowMessage($"已应用：{dialog.LastAppliedTheme.Name}", false);
+      RefreshStatus();
+    }
+  }
+
+  private async Task ShowWallpaperEngineAsync()
+  {
+    using var dialog = new WallpaperEngineDialog(_service, _lifetime.Token);
+    if (dialog.ShowDialog(this) == DialogResult.OK && dialog.ImportedItems.Count > 0)
+    {
+      var added = WallpaperEngineReferenceCatalog.AddImports(
+        _settings.WallpaperEngineImports,
+        dialog.ImportedItems);
+      if (added > 0)
+      {
+        _settingsStore.Save(_settings);
+      }
+      await ReloadLibraryAsync();
+      ShowMessage(
+        added == 0 ? "所选 Wallpaper Engine 视频已在主页中。" : $"已导入主页：{added} 个 Wallpaper Engine 视频。",
+        false);
+    }
   }
 
   private async Task ImportWallpapersAsync()
@@ -798,6 +887,10 @@ internal sealed class MainForm : Form
     {
       // App shutdown owns cancellation.
     }
+    catch (OperationCanceledException exception)
+    {
+      ShowMessage(exception.Message, false);
+    }
     catch (Exception exception)
     {
       ShowError(exception);
@@ -807,6 +900,15 @@ internal sealed class MainForm : Form
       SetBusy(false);
     }
   }
+
+  private bool ConfirmCodexRestart(string message) =>
+    MessageBox.Show(
+      this,
+      message,
+      DisplayName,
+      MessageBoxButtons.YesNo,
+      MessageBoxIcon.Warning,
+      MessageBoxDefaultButton.Button2) == DialogResult.Yes;
 
   private void RefreshStatus()
   {
@@ -832,9 +934,12 @@ internal sealed class MainForm : Form
 
   private void UpdateRevealLabel()
   {
-    _revealLabel.Text = _revealSlider.Value == 100
-      ? "100% · 原始壁纸画面"
-      : $"{_revealSlider.Value}% · 主题蒙层仍保留";
+    _revealLabel.Text = _revealSlider.Value switch
+    {
+      0 => "0% · 完全不透明",
+      100 => "100% · 完全透明（原始壁纸）",
+      var value => $"{value}% · 壁纸逐步透出"
+    };
   }
 
   private void SetBusy(bool busy)
@@ -843,6 +948,8 @@ internal sealed class MainForm : Form
     _startButton.Enabled = !busy;
     _importButton.Enabled = !busy;
     _restoreButton.Enabled = !busy;
+    _themesButton.Enabled = !busy;
+    _wallpaperEngineButton.Enabled = !busy;
     _applyButton.Enabled = !busy && _selectedWallpaper is not null;
     _revealSlider.Enabled = !busy;
     _searchBox.Enabled = !busy;

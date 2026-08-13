@@ -35,8 +35,14 @@
   --dream-task-immersive-edge: color-mix(in oklab, var(--dream-task-immersive-edge-base) var(--dream-wallpaper-cover), transparent);
   --dream-task-immersive-mid: color-mix(in oklab, var(--dream-task-immersive-mid-base) var(--dream-wallpaper-cover), transparent);
   --dream-task-immersive-far: color-mix(in oklab, var(--dream-task-immersive-far-base) var(--dream-wallpaper-cover), transparent);
-  --dream-immersive-composer: color-mix(in oklab, var(--dream-surface-raised) 76%, var(--dream-accent) 4%);
-  --dream-immersive-line: color-mix(in oklab, var(--dream-line) 76%, transparent);
+  --dream-immersive-composer-base: color-mix(in oklab, var(--dream-surface-raised) 76%, var(--dream-accent) 4%);
+  --dream-immersive-control-base: color-mix(in oklab, var(--dream-surface-raised) 58%, transparent);
+  --dream-immersive-line-base: color-mix(in oklab, var(--dream-line) 76%, transparent);
+  --dream-immersive-shadow-base: color-mix(in oklab, var(--dream-canvas) 20%, transparent);
+  --dream-immersive-composer: color-mix(in oklab, var(--dream-immersive-composer-base) var(--dream-wallpaper-cover), transparent);
+  --dream-immersive-control: color-mix(in oklab, var(--dream-immersive-control-base) var(--dream-wallpaper-cover), transparent);
+  --dream-immersive-line: color-mix(in oklab, var(--dream-immersive-line-base) var(--dream-wallpaper-cover), transparent);
+  --dream-immersive-shadow: color-mix(in oklab, var(--dream-immersive-shadow-base) var(--dream-wallpaper-cover), transparent);
 }
 
 :root.codex-dream-skin.dream-theme-dark {
@@ -62,8 +68,8 @@
   --dream-task-immersive-edge-base: color-mix(in oklab, var(--dream-surface) 82%, transparent);
   --dream-task-immersive-mid-base: color-mix(in oklab, var(--dream-surface) 74%, transparent);
   --dream-task-immersive-far-base: color-mix(in oklab, var(--dream-surface) 60%, transparent);
-  --dream-immersive-composer: color-mix(in oklab, var(--dream-surface-raised) 88%, var(--dream-accent) 5%);
-  --dream-immersive-line: color-mix(in oklab, var(--dream-line) 82%, transparent);
+  --dream-immersive-composer-base: color-mix(in oklab, var(--dream-surface-raised) 88%, var(--dream-accent) 5%);
+  --dream-immersive-line-base: color-mix(in oklab, var(--dream-line) 82%, transparent);
 }
 
 html.codex-dream-skin body {
@@ -133,15 +139,14 @@ html.codex-dream-skin [class~="group/application-menu-top-bar"] {
   background: color-mix(in oklab,
     color-mix(in oklab, var(--dream-sidebar) 88%, transparent)
     var(--dream-wallpaper-cover), transparent) !important;
-  border-bottom: 1px solid var(--dream-line-soft) !important;
-  box-shadow: 0 1px 12px color-mix(in oklab, var(--dream-canvas) 72%, transparent) !important;
+  border-bottom: 1px solid var(--dream-immersive-line) !important;
+  box-shadow: 0 1px 12px var(--dream-immersive-shadow) !important;
   backdrop-filter: blur(18px) saturate(.88) !important;
 }
 
 html.codex-dream-skin.dream-art-video [class~="group/application-menu-top-bar"] {
-  background: color-mix(in oklab,
-    color-mix(in oklab, var(--dream-sidebar) 94%, transparent)
-    var(--dream-wallpaper-cover), transparent) !important;
+  background: var(--dream-immersive-composer) !important;
+  backdrop-filter: none !important;
 }
 
 html.codex-dream-skin [class~="group/application-menu-top-bar"] button,
@@ -445,8 +450,8 @@ html.codex-dream-skin article {
 /* A 16:9 or wider image is painted once on the native window. The sidebar,
    title bar and route surface become coordinated readability layers instead
    of repeating or cropping the image inside individual panels. */
-html.codex-dream-skin.dream-art-wide:has(main.main-surface.dream-home-shell) body,
-html.codex-dream-skin.dream-art-wide:is(.dream-task-ambient, .dream-task-banner):has(main.main-surface:not(.dream-home-shell)) body {
+html.codex-dream-skin.dream-art-wide.dream-route-home body,
+html.codex-dream-skin.dream-art-wide.dream-route-task:is(.dream-task-ambient, .dream-task-banner) body {
   background-color: var(--dream-canvas) !important;
   background-image:
     linear-gradient(var(--dream-media-overlay), var(--dream-media-overlay)),
@@ -457,9 +462,9 @@ html.codex-dream-skin.dream-art-wide:is(.dream-task-ambient, .dream-task-banner)
   background-attachment: fixed !important;
 }
 
-html.codex-dream-skin.dream-art-wide:has(main.main-surface.dream-home-shell)
+html.codex-dream-skin.dream-art-wide.dream-route-home
   aside.app-shell-left-panel,
-html.codex-dream-skin.dream-art-wide:is(.dream-task-ambient, .dream-task-banner):has(main.main-surface:not(.dream-home-shell))
+html.codex-dream-skin.dream-art-wide.dream-route-task:is(.dream-task-ambient, .dream-task-banner)
   aside.app-shell-left-panel {
   background: linear-gradient(90deg,
     var(--dream-immersive-sidebar),
@@ -470,16 +475,16 @@ html.codex-dream-skin.dream-art-wide:is(.dream-task-ambient, .dream-task-banner)
   backdrop-filter: none !important;
 }
 
-html.codex-dream-skin.dream-art-wide:is(.dream-task-ambient, .dream-task-banner):has(main.main-surface:not(.dream-home-shell))
+html.codex-dream-skin.dream-art-wide.dream-route-task:is(.dream-task-ambient, .dream-task-banner)
   aside.app-shell-left-panel {
   background: linear-gradient(90deg,
     var(--dream-task-immersive-sidebar),
     var(--dream-task-immersive-edge)) !important;
 }
 
-html.codex-dream-skin.dream-art-wide:has(main.main-surface.dream-home-shell)
+html.codex-dream-skin.dream-art-wide.dream-route-home
   aside.app-shell-left-panel::after,
-html.codex-dream-skin.dream-art-wide:is(.dream-task-ambient, .dream-task-banner):has(main.main-surface:not(.dream-home-shell))
+html.codex-dream-skin.dream-art-wide.dream-route-task:is(.dream-task-ambient, .dream-task-banner)
   aside.app-shell-left-panel::after {
   background: transparent !important;
 }
@@ -490,6 +495,9 @@ html.codex-dream-skin.dream-art-wide:is(.dream-task-ambient, .dream-task-banner)
     var(--dream-immersive-edge),
     var(--dream-immersive-mid) 64%,
     var(--dream-immersive-far)) !important;
+  background-position: 0 var(--height-token-toolbar, 46px) !important;
+  background-size: 100% calc(100% - var(--height-token-toolbar, 46px)) !important;
+  background-repeat: no-repeat !important;
   border: 0 !important;
   border-radius: 0 !important;
   box-shadow: none !important;
@@ -500,6 +508,9 @@ html.codex-dream-skin.dream-art-wide:is(.dream-task-ambient, .dream-task-banner)
     var(--dream-task-immersive-edge),
     var(--dream-task-immersive-mid) 64%,
     var(--dream-task-immersive-far)) !important;
+  background-position: 0 var(--height-token-toolbar, 46px) !important;
+  background-size: 100% calc(100% - var(--height-token-toolbar, 46px)) !important;
+  background-repeat: no-repeat !important;
 }
 
 html.codex-dream-skin.dream-art-wide:is(.dream-task-ambient, .dream-task-banner) .dream-task {
@@ -523,17 +534,14 @@ html.codex-dream-skin.dream-art-wide main.main-surface > header.app-header-tint 
   filter: drop-shadow(0 1px 2px color-mix(in oklab, var(--dream-canvas) 72%, transparent));
 }
 
-/* Unlike a static image, a video can invalidate foreground contrast on every
-   frame. Keep the secondary Codex toolbar translucent but independently
-   readable instead of relying on text shadows over the moving media. */
+/* Keep both Codex toolbar rows on the same compositing plane. The route veil
+   starts below this fixed header, so the toolbar never receives a double tint. */
 html.codex-dream-skin.dream-art-video main.main-surface > header.app-header-tint {
   color: var(--dream-text) !important;
-  background: color-mix(in oklab,
-    color-mix(in oklab, var(--dream-surface) 86%, transparent)
-    var(--dream-wallpaper-cover), transparent) !important;
-  border-bottom: 1px solid var(--dream-line-soft) !important;
-  box-shadow: 0 1px 12px color-mix(in oklab, var(--dream-canvas) 44%, transparent) !important;
-  backdrop-filter: blur(16px) saturate(.9) !important;
+  background: var(--dream-immersive-composer) !important;
+  border-bottom: 1px solid var(--dream-immersive-line) !important;
+  box-shadow: 0 1px 10px var(--dream-immersive-shadow) !important;
+  backdrop-filter: none !important;
   text-shadow: 0 1px 2px color-mix(in oklab, var(--dream-canvas) 86%, transparent),
     0 0 8px color-mix(in oklab, var(--dream-canvas) 58%, transparent) !important;
 }
@@ -562,8 +570,8 @@ html.codex-dream-skin.dream-art-wide main.main-surface.dream-home-shell
 
 html.codex-dream-skin.dream-art-wide main.main-surface.dream-home-shell
   .dream-home .group\/home-suggestions button {
-  background: color-mix(in oklab, var(--dream-surface-raised) 58%, transparent) !important;
-  box-shadow: 0 8px 22px color-mix(in oklab, var(--dream-canvas) 18%, transparent),
+  background: var(--dream-immersive-control) !important;
+  box-shadow: 0 8px 22px var(--dream-immersive-shadow),
     inset 0 0 0 1px var(--dream-immersive-line) !important;
   backdrop-filter: blur(8px) saturate(1.04) !important;
 }
@@ -574,7 +582,7 @@ html.codex-dream-skin.dream-art-wide .composer-surface-chrome {
   color: var(--dream-text) !important;
   background: var(--dream-immersive-composer) !important;
   border: 0 !important;
-  box-shadow: 0 10px 30px color-mix(in oklab, var(--dream-canvas) 20%, transparent),
+  box-shadow: 0 10px 30px var(--dream-immersive-shadow),
     inset 0 0 0 1px var(--dream-immersive-line) !important;
   backdrop-filter: none !important;
 }
@@ -586,16 +594,16 @@ html.codex-dream-skin.dream-art-wide .composer-surface-chrome::before {
 /* Current Codex builds render the home project picker in a hashed utility bar.
    Merge it with the composer so the bottom control reads as one surface. */
 html.codex-dream-skin .dream-home-utility {
-  border: 1px solid var(--dream-line) !important;
+  border: 1px solid var(--dream-immersive-line) !important;
   border-bottom: 0 !important;
   border-radius: 18px 18px 0 0 !important;
   background: var(--dream-immersive-composer) !important;
   box-shadow: none !important;
 }
 
-html.codex-dream-skin .dream-home:has(.dream-home-utility) .composer-surface-chrome {
+html.codex-dream-skin.dream-home-utility-present .dream-home .composer-surface-chrome {
   border-radius: 0 0 18px 18px !important;
-  box-shadow: 0 10px 30px color-mix(in oklab, var(--dream-canvas) 20%, transparent),
+  box-shadow: 0 10px 30px var(--dream-immersive-shadow),
     inset 1px 0 var(--dream-immersive-line),
     inset -1px 0 var(--dream-immersive-line),
     inset 0 -1px var(--dream-immersive-line) !important;
@@ -605,14 +613,14 @@ html.codex-dream-skin .dream-home:has(.dream-home-utility) .composer-surface-chr
    Clear only full-window or sticky route chrome, leaving functional cards and
    their hover states intact. */
 html.codex-dream-skin.dream-art-wide:is(.dream-task-ambient, .dream-task-banner)
-  main.main-surface:not(.dream-home-shell) div.sticky:has(input[type="text"]),
+  main.main-surface:not(.dream-home-shell) .dream-task-search-sticky,
 html.codex-dream-skin.dream-art-wide:is(.dream-task-ambient, .dream-task-banner)
-  main.main-surface:not(.dream-home-shell) div.sticky:has(input[type="text"])::after {
+  main.main-surface:not(.dream-home-shell) .dream-task-search-sticky::after {
   background: transparent !important;
 }
 
 html.codex-dream-skin.dream-art-wide:is(.dream-task-ambient, .dream-task-banner)
-  main.main-surface:not(.dream-home-shell) div.no-drag:has(> input[type="text"]) {
+  main.main-surface:not(.dream-home-shell) .dream-task-search-input {
   background: var(--dream-immersive-composer) !important;
   border: 0 !important;
   box-shadow: inset 0 0 0 1px var(--dream-immersive-line) !important;

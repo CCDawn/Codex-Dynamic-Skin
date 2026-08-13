@@ -68,9 +68,21 @@ internal sealed class PowerShellRunner
 
     using var process = new Process { StartInfo = startInfo };
     process.Start();
-    var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-    var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
-    await process.WaitForExitAsync(cancellationToken);
+    var outputTask = process.StandardOutput.ReadToEndAsync();
+    var errorTask = process.StandardError.ReadToEndAsync();
+    try
+    {
+      await process.WaitForExitAsync(cancellationToken);
+    }
+    catch (OperationCanceledException)
+    {
+      if (!process.HasExited)
+      {
+        process.Kill(entireProcessTree: true);
+        await process.WaitForExitAsync(CancellationToken.None);
+      }
+      throw;
+    }
     return new ProcessResult(
       process.ExitCode,
       await outputTask,

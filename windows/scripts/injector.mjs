@@ -14,6 +14,7 @@ const VIDEO_CHUNK_BYTES = 512 * 1024;
 const STRONG_THEME_AUDIT_MS = 30000;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
 const BROWSER_ID_PATTERN = /^[A-Za-z0-9._-]{1,200}$/;
+const WALLPAPER_ENGINE_CONTENT_SUFFIX = path.join("steamapps", "workshop", "content", "431960");
 
 class CdpIdentityMismatchError extends Error {}
 
@@ -306,6 +307,119 @@ function normalizedText(value, name, fallback, maxLength = 120) {
   return value;
 }
 
+function normalizedLoopbackStreamUrl(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const text = normalizedText(value, "media.streamUrl", null, 400);
+  let parsed;
+  try {
+    parsed = new URL(text);
+  } catch {
+    throw new Error("media.streamUrl must be an absolute URL");
+  }
+  const safePath = /^\/[A-Za-z0-9_-]{16,128}\/stream\.mp4$/.test(parsed.pathname);
+  if (parsed.protocol !== "http:" || !LOOPBACK_HOSTS.has(parsed.hostname) || !parsed.port ||
+      parsed.username || parsed.password || parsed.search || parsed.hash || !safePath) {
+    throw new Error("media.streamUrl must be a tokenized loopback HTTP MP4 endpoint");
+  }
+  return parsed.href;
+}
+
+function isPathInside(rootPath, candidatePath) {
+  const relative = path.relative(rootPath, candidatePath);
+  return Boolean(relative) && !relative.startsWith(`..${path.sep}`) && relative !== ".." &&
+    !path.isAbsolute(relative);
+}
+
+function normalizeRelativeMediaPath(value, name) {
+  const relativePath = normalizedText(value, name, null, 240);
+  if (!relativePath || path.isAbsolute(relativePath)) {
+    throw new Error(`${name} must be a relative path`);
+  }
+  const normalized = path.normalize(relativePath);
+  if (!isPathInside(".", normalized)) {
+    throw new Error(`${name} must remain inside the Wallpaper Engine item directory`);
+  }
+  return normalized;
+}
+
+function normalizeWallpaperEngineReference(rawMedia) {
+  if (rawMedia.source === null || rawMedia.source === undefined || rawMedia.source === "") {
+    return null;
+  }
+  if (rawMedia.source !== "wallpaper-engine-local") {
+    throw new Error("media.source has an unsupported value");
+  }
+  const workshopId = normalizedText(rawMedia.workshopId, "media.workshopId", null, 20);
+  if (!workshopId || !/^\d{1,20}$/.test(workshopId)) {
+    throw new Error("media.workshopId must be a numeric Workshop item ID");
+  }
+  const workshopRoot = normalizedText(rawMedia.workshopRoot, "media.workshopRoot", null, 1024);
+  if (!workshopRoot || !path.isAbsolute(workshopRoot)) {
+    throw new Error("media.workshopRoot must be an absolute Steam Workshop content path");
+  }
+  const normalizedRoot = path.normalize(workshopRoot).replace(/[\\/]+$/, "");
+  if (!normalizedRoot.toLowerCase().endsWith(WALLPAPER_ENGINE_CONTENT_SUFFIX.toLowerCase())) {
+    throw new Error("media.workshopRoot is not the Wallpaper Engine Workshop content directory");
+  }
+  return {
+    workshopId,
+    workshopRoot: normalizedRoot,
+    relativePath: normalizeRelativeMediaPath(rawMedia.relativePath, "media.relativePath"),
+  };
+}
+
+async function resolveWallpaperEngineMedia(reference) {
+  const realWorkshopRoot = await fs.realpath(reference.workshopRoot);
+  const workshopDirectory = path.resolve(reference.workshopRoot, reference.workshopId);
+  if (!isPathInside(reference.workshopRoot, workshopDirectory)) {
+    throw new Error("Wallpaper Engine Workshop item directory escaped its content root");
+  }
+  const realWorkshopDirectory = await fs.realpath(workshopDirectory);
+  if (!isPathInside(realWorkshopRoot, realWorkshopDirectory)) {
+    throw new Error("Wallpaper Engine Workshop item directory escaped through a link or junction");
+  }
+  const mediaPath = path.resolve(workshopDirectory, reference.relativePath);
+  if (!isPathInside(workshopDirectory, mediaPath)) {
+    throw new Error("Wallpaper Engine media escaped its item directory");
+  }
+  const realMediaPath = await fs.realpath(mediaPath);
+  if (!isPathInside(realWorkshopDirectory, realMediaPath)) {
+    throw new Error("Wallpaper Engine media escaped through a link or junction");
+  }
+  return realMediaPath;
+}
+
+async function resolvePerformanceProxy(rawMedia, themeDir) {
+  if (rawMedia.proxy === null || rawMedia.proxy === undefined || rawMedia.proxy === "") return null;
+  const relativePath = normalizeRelativeMediaPath(rawMedia.proxy, "media.proxy");
+  const parts = relativePath.split(/[\\/]+/);
+  if (parts.length !== 2 || parts[0].toLowerCase() !== "media-cache") {
+    throw new Error("media.proxy must be a file directly inside media-cache");
+  }
+  const directoryName = path.basename(themeDir).toLowerCase();
+  const parent = path.dirname(themeDir);
+  const stateRoot = directoryName === "active-theme" ? parent
+    : path.basename(parent).toLowerCase() === "themes" ? path.dirname(parent)
+    : null;
+  if (!stateRoot) throw new Error("media.proxy requires a managed theme directory");
+  const cacheRoot = path.resolve(stateRoot, "media-cache");
+  const proxyPath = path.resolve(stateRoot, relativePath);
+  if (!isPathInside(cacheRoot, proxyPath)) {
+    throw new Error("media.proxy escaped media-cache");
+  }
+  const [realCacheRoot, realProxyPath] = await Promise.all([
+    fs.realpath(cacheRoot),
+    fs.realpath(proxyPath),
+  ]);
+  if (!isPathInside(realCacheRoot, realProxyPath)) {
+    throw new Error("media.proxy escaped media-cache through a link or junction");
+  }
+  if (!new Set([".mp4", ".webm"]).has(path.extname(realProxyPath).toLowerCase())) {
+    throw new Error("media.proxy must be an MP4 or WebM video");
+  }
+  return realProxyPath;
+}
+
 async function readVideoSignature(videoPath, extension) {
   const handle = await fs.open(videoPath, "r");
   try {
@@ -333,37 +447,73 @@ async function loadTheme(themeDir) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     throw new Error("Theme root must be an object");
   }
+  if (raw.schemaVersion !== 1) {
+    throw new Error("Theme schemaVersion must equal 1");
+  }
+  const rawMedia = raw.media && typeof raw.media === "object" && !Array.isArray(raw.media)
+    ? raw.media : {};
+  const streamUrl = normalizedLoopbackStreamUrl(rawMedia.streamUrl);
+  const sceneStream = rawMedia.type === "scene";
+  if (sceneStream !== Boolean(streamUrl)) {
+    throw new Error("media.type scene and media.streamUrl must be used together");
+  }
+  if (sceneStream && rawMedia.codec !== "avc1.42c01f") {
+    throw new Error("Scene streams require media.codec avc1.42c01f");
+  }
+  const wallpaperEngineReference = normalizeWallpaperEngineReference(rawMedia);
   const mediaFile = normalizedText(raw.image, "image", null, 240);
   if (!mediaFile || path.isAbsolute(mediaFile)) throw new Error("Theme media must be a relative path");
-  const mediaPath = path.resolve(realThemeDir, mediaFile);
-  const relativeMedia = path.relative(realThemeDir, mediaPath);
-  if (!relativeMedia || relativeMedia.startsWith("..") || path.isAbsolute(relativeMedia)) {
-    throw new Error("Theme media must remain inside the selected theme directory");
-  }
-  const extension = path.extname(mediaPath).toLowerCase();
   const imageExtensions = new Set([".png", ".jpg", ".jpeg", ".webp"]);
   const videoExtensions = new Set([".mp4", ".webm"]);
-  if (!imageExtensions.has(extension) && !videoExtensions.has(extension)) {
-    throw new Error(`Unsupported theme media format: ${extension || "missing"}`);
+  const expectedRelativePath = wallpaperEngineReference?.relativePath;
+  if (expectedRelativePath && path.normalize(mediaFile) !== expectedRelativePath) {
+    throw new Error("Theme image must match media.relativePath for Wallpaper Engine media");
   }
-  const realMediaPath = await fs.realpath(mediaPath);
-  const realRelativeMedia = path.relative(realThemeDir, realMediaPath);
-  if (!realRelativeMedia || realRelativeMedia.startsWith("..") || path.isAbsolute(realRelativeMedia)) {
+  const sourceMediaPath = wallpaperEngineReference
+    ? await resolveWallpaperEngineMedia(wallpaperEngineReference)
+    : path.resolve(realThemeDir, mediaFile);
+  if (!wallpaperEngineReference && !isPathInside(realThemeDir, sourceMediaPath)) {
+    throw new Error("Theme media must remain inside the selected theme directory");
+  }
+  const sourceExtension = path.extname(sourceMediaPath).toLowerCase();
+  if (!imageExtensions.has(sourceExtension) && !videoExtensions.has(sourceExtension)) {
+    throw new Error(`Unsupported theme media format: ${sourceExtension || "missing"}`);
+  }
+  if (wallpaperEngineReference && sceneStream) {
+    throw new Error("Scene stream previews must be copied into the managed theme directory");
+  }
+  if (wallpaperEngineReference && !videoExtensions.has(sourceExtension)) {
+    throw new Error("Wallpaper Engine direct references only support MP4 or WebM video media");
+  }
+  const realMediaPath = wallpaperEngineReference
+    ? await resolvePerformanceProxy(rawMedia, realThemeDir) || sourceMediaPath
+    : await fs.realpath(sourceMediaPath);
+  const extension = path.extname(realMediaPath).toLowerCase();
+  if (!wallpaperEngineReference && !isPathInside(realThemeDir, realMediaPath)) {
     throw new Error("Theme media cannot escape through a link or junction");
   }
   const art = raw.art && typeof raw.art === "object" && !Array.isArray(raw.art) ? raw.art : {};
   const palette = raw.palette && typeof raw.palette === "object" && !Array.isArray(raw.palette)
-    ? raw.palette : {};
-  const rawMedia = raw.media && typeof raw.media === "object" && !Array.isArray(raw.media)
-    ? raw.media : {};
-  const inferredMediaType = videoExtensions.has(extension) ? "video" : "image";
+    ? { ...raw.palette } : {};
+  const legacyColors = raw.colors && typeof raw.colors === "object" && !Array.isArray(raw.colors)
+    ? raw.colors : {};
+  if (palette.accent === undefined && legacyColors.accent !== undefined) {
+    // macOS Theme v1 packs name this field `colors`; Windows renders the same value as `palette`.
+    palette.accent = legacyColors.accent;
+  } else if (typeof palette.accent === "string" && typeof legacyColors.accent === "string"
+    && palette.accent.trim() !== legacyColors.accent.trim()) {
+    throw new Error("Theme palette.accent conflicts with colors.accent");
+  }
+  const sourceMediaType = videoExtensions.has(extension) ? "video" : "image";
+  const inferredMediaType = sceneStream ? "stream" : sourceMediaType;
   const requestedMediaType = normalizedChoice(
     rawMedia.type,
     "media.type",
-    new Set(["image", "video"]),
-    inferredMediaType,
+    new Set(["image", "video", "scene"]),
+    sourceMediaType,
   );
-  if (requestedMediaType !== inferredMediaType) {
+  if ((!sceneStream && requestedMediaType !== sourceMediaType) ||
+      (sceneStream && sourceMediaType !== "image")) {
     throw new Error(`Theme media type ${requestedMediaType} does not match ${extension}`);
   }
   const playbackRate = rawMedia.playbackRate === null || rawMedia.playbackRate === undefined
@@ -389,11 +539,18 @@ async function loadTheme(themeDir) {
     },
     palette: {},
     media: {
-      type: inferredMediaType,
+      type: sceneStream ? "video" : inferredMediaType,
       playbackRate,
       opacity,
     },
   };
+  if (sceneStream) {
+    theme.media.streamUrl = streamUrl;
+    theme.media.codec = "avc1.42c01f";
+  }
+  if (wallpaperEngineReference) {
+    theme.media.source = "wallpaper-engine-local";
+  }
   if (typeof palette.accent === "string" && palette.accent.trim()) {
     const accent = palette.accent.trim();
     if (!/^(?:#[\da-f]{3,8}|(?:rgb|hsl|oklch|oklab)\([^;{}]{1,96}\))$/i.test(accent)) {
@@ -407,7 +564,8 @@ async function loadTheme(themeDir) {
   const fingerprintHash = createHash("sha256").update(themeText, "utf8").update("\0");
   let mediaBytes = null;
   let mediaMime = null;
-  if (inferredMediaType === "image") {
+  let artMime = null;
+  if (sourceMediaType === "image") {
     if (mediaStat.size > MAX_ART_BYTES) {
       throw new Error(`Theme image exceeds the ${MAX_ART_BYTES / 1024 / 1024} MB limit`);
     }
@@ -420,8 +578,9 @@ async function loadTheme(themeDir) {
       throw new Error("Theme image metadata is invalid or exceeds the 16384px / 50MP safety limit");
     }
     theme.artMetadata = artMetadata;
-    mediaMime = extension === ".jpg" || extension === ".jpeg" ? "image/jpeg"
+    artMime = extension === ".jpg" || extension === ".jpeg" ? "image/jpeg"
       : extension === ".webp" ? "image/webp" : "image/png";
+    mediaMime = sceneStream ? "video/mp4" : artMime;
     fingerprintHash.update(mediaBytes);
   } else {
     if (mediaStat.size > MAX_VIDEO_BYTES) {
@@ -443,9 +602,11 @@ async function loadTheme(themeDir) {
     imagePath: realMediaPath,
     mediaPath: realMediaPath,
     mediaBytes,
+    artMime,
     mediaMime,
     mediaSize: mediaStat.size,
     mediaType: inferredMediaType,
+    mediaStreamUrl: streamUrl,
     fingerprint,
     sourceStamp: `${themeStat.size}:${themeStat.mtimeMs}:${mediaStat.size}:${mediaStat.mtimeMs}`,
   };
@@ -457,8 +618,8 @@ async function loadPayload(themeDir = path.join(root, "assets"), candidateTheme 
     fs.readFile(path.join(root, "assets", "dream-skin.css"), "utf8"),
     fs.readFile(path.join(root, "assets", "renderer-inject.js"), "utf8"),
   ]);
-  const artDataUrl = loadedTheme.mediaType === "image"
-    ? `data:${loadedTheme.mediaMime};base64,${loadedTheme.mediaBytes.toString("base64")}`
+  const artDataUrl = ["image", "stream"].includes(loadedTheme.mediaType)
+    ? `data:${loadedTheme.artMime ?? loadedTheme.mediaMime};base64,${loadedTheme.mediaBytes.toString("base64")}`
     : "";
   const payload = template
     .replace("__DREAM_CSS_JSON__", JSON.stringify(css))
@@ -628,12 +789,29 @@ export async function setOpacityOnSession(session, value) {
   return opacity;
 }
 
+export async function setStreamCspBypass(session, enabled) {
+  const requested = enabled === true;
+  if (session.dreamSkinStreamCspBypass === requested) return requested;
+  await session.send("Page.setBypassCSP", { enabled: requested });
+  session.dreamSkinStreamCspBypass = requested;
+  return requested;
+}
+
 async function applyToSession(session, loadedPayload) {
-  const result = await session.evaluate(loadedPayload.payload);
-  if (loadedPayload.mediaType === "video") {
-    await transferVideoToSession(session, loadedPayload);
+  const streamEnabled = Boolean(loadedPayload.mediaStreamUrl);
+  await setStreamCspBypass(session, streamEnabled);
+  try {
+    const result = await session.evaluate(loadedPayload.payload);
+    if (loadedPayload.mediaType === "video" && !streamEnabled) {
+      await transferVideoToSession(session, loadedPayload);
+    }
+    return result;
+  } catch (error) {
+    if (streamEnabled) {
+      await setStreamCspBypass(session, false).catch(() => {});
+    }
+    throw error;
   }
-  return result;
 }
 
 export function earlyPayloadFor(payload, revision) {
@@ -684,31 +862,35 @@ async function removeEarlyPayload(session, identifier) {
 }
 
 async function removeFromSession(session) {
-  return session.evaluate(`(() => {
-    window.__CODEX_DREAM_SKIN_DISABLED__ = true;
-    const state = window.__CODEX_DREAM_SKIN_STATE__;
-    if (state?.cleanup) return state.cleanup();
-    document.documentElement?.classList.remove(
-      'codex-dream-skin', 'dream-theme-light', 'dream-theme-dark', 'dream-art-video',
-      'dream-art-wide', 'dream-art-standard', 'dream-focus-left',
-      'dream-focus-center', 'dream-focus-right', 'dream-safe-left',
-      'dream-safe-center', 'dream-safe-right', 'dream-safe-none',
-      'dream-task-ambient', 'dream-task-banner', 'dream-task-off'
-    );
-    for (const property of [
-      '--dream-art', '--dream-art-position', '--dream-focus-x', '--dream-focus-y',
-      '--dream-accent', '--dream-accent-ink', '--dream-image-luma',
-      '--dream-wallpaper-reveal', '--dream-wallpaper-cover'
-    ]) document.documentElement?.style.removeProperty(property);
-    document.querySelectorAll('.dream-home').forEach((node) => node.classList.remove('dream-home'));
-    document.querySelectorAll('.dream-task').forEach((node) => node.classList.remove('dream-task'));
-    document.querySelectorAll('.dream-home-shell').forEach((node) => node.classList.remove('dream-home-shell'));
-    document.getElementById('codex-dream-skin-style')?.remove();
-    document.getElementById('codex-dream-skin-chrome')?.remove();
-    document.getElementById('codex-dream-skin-media')?.remove();
-    delete window.__CODEX_DREAM_SKIN_STATE__;
-    return true;
-  })()`);
+  try {
+    return await session.evaluate(`(() => {
+      window.__CODEX_DREAM_SKIN_DISABLED__ = true;
+      const state = window.__CODEX_DREAM_SKIN_STATE__;
+      if (state?.cleanup) return state.cleanup();
+      document.documentElement?.classList.remove(
+        'codex-dream-skin', 'dream-theme-light', 'dream-theme-dark', 'dream-art-video',
+        'dream-art-wide', 'dream-art-standard', 'dream-focus-left',
+        'dream-focus-center', 'dream-focus-right', 'dream-safe-left',
+        'dream-safe-center', 'dream-safe-right', 'dream-safe-none',
+        'dream-task-ambient', 'dream-task-banner', 'dream-task-off'
+      );
+      for (const property of [
+        '--dream-art', '--dream-art-position', '--dream-focus-x', '--dream-focus-y',
+        '--dream-accent', '--dream-accent-ink', '--dream-image-luma',
+        '--dream-wallpaper-reveal', '--dream-wallpaper-cover'
+      ]) document.documentElement?.style.removeProperty(property);
+      document.querySelectorAll('.dream-home').forEach((node) => node.classList.remove('dream-home'));
+      document.querySelectorAll('.dream-task').forEach((node) => node.classList.remove('dream-task'));
+      document.querySelectorAll('.dream-home-shell').forEach((node) => node.classList.remove('dream-home-shell'));
+      document.getElementById('codex-dream-skin-style')?.remove();
+      document.getElementById('codex-dream-skin-chrome')?.remove();
+      document.getElementById('codex-dream-skin-media')?.remove();
+      delete window.__CODEX_DREAM_SKIN_STATE__;
+      return true;
+    })()`);
+  } finally {
+    await setStreamCspBypass(session, false).catch(() => {});
+  }
 }
 
 async function verifyRemovedSession(session) {
@@ -743,6 +925,8 @@ async function verifySession(session) {
       chromePresent: Boolean(document.getElementById('codex-dream-skin-chrome')),
       chromePointerEvents: getComputedStyle(document.getElementById('codex-dream-skin-chrome') || document.body).pointerEvents,
       mediaType: window.__CODEX_DREAM_SKIN_STATE__?.config?.mediaType ?? 'image',
+      mediaStream: Boolean(window.__CODEX_DREAM_SKIN_STATE__?.config?.streamUrl),
+      streamStats: window.__CODEX_DREAM_SKIN_STATE__?.streamStats ?? null,
       wallpaperReveal: window.__CODEX_DREAM_SKIN_STATE__?.config?.wallpaperReveal ?? null,
       mediaPresent: Boolean(document.getElementById('codex-dream-skin-media')),
       mediaReady: Boolean(window.__CODEX_DREAM_SKIN_STATE__?.mediaUrl),
@@ -768,7 +952,9 @@ async function verifySession(session) {
       result.chromePointerEvents === 'none' && Boolean(result.composer) && Boolean(result.sidebar) &&
       Number.isFinite(result.wallpaperReveal) && result.wallpaperReveal >= 0 && result.wallpaperReveal <= 1 &&
       (result.mediaType !== 'video' ||
-        (result.mediaPresent && result.mediaReady && result.mediaElementOpacity === '1')) &&
+        (result.mediaPresent && result.mediaReady && result.mediaElementOpacity === '1' &&
+          (!result.mediaStream ||
+            (result.streamStats?.chunks > 0 && result.streamStats?.bytes > 0)))) &&
       (!result.homePresent || (Boolean(result.hero) &&
         (!result.suggestionsPresent || (result.cards.length >= 2 && result.cards.length <= 4))));
     return result;
@@ -1163,6 +1349,7 @@ if (path.resolve(process.argv[1] || "") === path.resolve(scriptPath)) {
       themeId: loaded.theme.id,
       appearance: loaded.theme.appearance,
       art: loaded.theme.art,
+      palette: loaded.theme.palette,
       artMetadata: loaded.theme.artMetadata ?? null,
       media: loaded.theme.media,
     }));
