@@ -10,10 +10,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/CCDawn/Codex-Dream-Skin-Enhanced?style=flat-square&color=f47f9c"></a>
-  <a href="https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/releases"><img alt="累计下载" src="https://img.shields.io/github/downloads/CCDawn/Codex-Dream-Skin-Enhanced/total?style=flat-square&color=ad6fe8"></a>
-  <a href="https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/CCDawn/Codex-Dream-Skin-Enhanced/ci.yml?branch=main&style=flat-square&label=CI"></a>
-  <a href="./LICENSE"><img alt="MIT License" src="https://img.shields.io/github/license/CCDawn/Codex-Dream-Skin-Enhanced?style=flat-square"></a>
+  <a href="https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest"><img alt="最新版本" src="https://img.shields.io/github/v/release/CCDawn/Codex-Dynamic-Skin?style=flat-square&color=f47f9c"></a>
+  <a href="https://github.com/CCDawn/Codex-Dynamic-Skin/releases"><img alt="累计下载" src="https://img.shields.io/github/downloads/CCDawn/Codex-Dynamic-Skin/total?style=flat-square&color=ad6fe8"></a>
+  <a href="https://github.com/CCDawn/Codex-Dynamic-Skin/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/CCDawn/Codex-Dynamic-Skin/ci.yml?branch=main&style=flat-square&label=CI"></a>
+  <a href="./LICENSE"><img alt="MIT License" src="https://img.shields.io/github/license/CCDawn/Codex-Dynamic-Skin?style=flat-square"></a>
 </p>
 
 <p align="center">
@@ -21,15 +21,15 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/releases/latest/download/CodexDreamSkinManager.exe"><strong>下载 Windows EXE</strong></a>
+  <a href="https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest/download/CodexDreamSkinManager.exe"><strong>下载 Windows EXE</strong></a>
   ·
   <a href="#macos-安装">macOS 安装</a>
   ·
   <a href="./docs/showcase.md">查看效果展厅</a>
   ·
-  <a href="https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/discussions">加入讨论</a>
+  <a href="https://github.com/CCDawn/Codex-Dynamic-Skin/discussions">加入讨论</a>
   ·
-  <a href="https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/issues">反馈问题</a>
+  <a href="https://github.com/CCDawn/Codex-Dynamic-Skin/issues">反馈问题</a>
 </p>
 
 > 非 OpenAI 官方产品。Codex 动态壁纸通过仅绑定 `127.0.0.1` 的本机 CDP 注入主题，不修改 WindowsApps、`.app`、`app.asar` 或官方代码签名。
@@ -45,13 +45,13 @@
 
 ## Windows：30 秒开始
 
-1. 下载 [`CodexDreamSkinManager.exe`](https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/releases/latest/download/CodexDreamSkinManager.exe)。
+1. 下载 [`CodexDreamSkinManager.exe`](https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest/download/CodexDreamSkinManager.exe)。
 2. 双击运行，点击「添加壁纸」导入 PNG、JPEG、WebP、MP4 或 WebM。
 3. 点击「应用到 Codex」。需要时点击「启动 / 重新应用」。
 
 管理器是自包含的单文件程序，内置经过测试的动态壁纸引擎与 Node.js 运行时；最终用户不需要安装 .NET SDK、Node.js 或手动执行 PowerShell。
 
-> 当前发布版尚未进行代码签名，Windows 可能显示“未知发布者”。请只从本仓库的 [Releases](https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/releases) 下载，并使用同页 `.sha256` 文件核对。
+> 当前发布版尚未进行代码签名，Windows 可能显示“未知发布者”。请只从本仓库的 [Releases](https://github.com/CCDawn/Codex-Dynamic-Skin/releases) 下载，并使用同页 `.sha256` 文件核对。
 
 ### 壁纸透出
 
@@ -120,7 +120,7 @@ Windows 视频会分块传入 renderer 并组装为 Blob URL；切换、暂停�
 - 不修改 WindowsApps、`.app`、`app.asar` 或官方签名。
 - 不读取或改写 API Key、Base URL、模型供应商或 Codex 聊天内容。
 - 主题运行期间不要运行来路不明的本机程序；本机恶意进程可能尝试访问调试端口。
-- Codex 官方更新可能改变 DOM。若主题失效，请先使用管理器「启动 / 重新应用」，再查看 [Issues](https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/issues)。
+- Codex 官方更新可能改变 DOM。若主题失效，请先使用管理器「启动 / 重新应用」，再查看 [Issues](https://github.com/CCDawn/Codex-Dynamic-Skin/issues)。
 
 ## 从源码运行与构建
 
@@ -199,8 +199,8 @@ bash macos/tests/run-tests.sh
 
 ## 反馈与贡献
 
-- 公告、主题分享与使用交流：[GitHub Discussions](https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/discussions)。
-- 首个版本公告：[Codex 动态壁纸 v1.0.0 正式发布](https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/discussions/5)。
+- 公告、主题分享与使用交流：[GitHub Discussions](https://github.com/CCDawn/Codex-Dynamic-Skin/discussions)。
+- 首个版本公告：[Codex 动态壁纸 v1.0.0 正式发布](https://github.com/CCDawn/Codex-Dynamic-Skin/discussions/5)。
 - 使用 [Bug / 功能 Issue 模板](./.github/ISSUE_TEMPLATE/) 提交问题。
 - PR 请说明平台、复现或目标、验证命令与恢复测试。
 - 贡献指南：[中文](./.github/CONTRIBUTING.md) · [English](./.github/CONTRIBUTING.en.md)

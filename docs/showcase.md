@@ -68,4 +68,4 @@ cd macos
 
 ---
 
-[下载 Windows EXE](https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/releases/latest/download/CodexDreamSkinManager.exe) · [返回项目首页](../README.md)
+[下载 Windows EXE](https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest/download/CodexDreamSkinManager.exe) · [返回项目首页](../README.md)

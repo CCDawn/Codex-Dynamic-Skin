@@ -10,10 +10,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/CCDawn/Codex-Dream-Skin-Enhanced?style=flat-square&color=f47f9c"></a>
-  <a href="https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/releases"><img alt="Total downloads" src="https://img.shields.io/github/downloads/CCDawn/Codex-Dream-Skin-Enhanced/total?style=flat-square&color=ad6fe8"></a>
-  <a href="https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/CCDawn/Codex-Dream-Skin-Enhanced/ci.yml?branch=main&style=flat-square&label=CI"></a>
-  <a href="./LICENSE"><img alt="MIT License" src="https://img.shields.io/github/license/CCDawn/Codex-Dream-Skin-Enhanced?style=flat-square"></a>
+  <a href="https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/CCDawn/Codex-Dynamic-Skin?style=flat-square&color=f47f9c"></a>
+  <a href="https://github.com/CCDawn/Codex-Dynamic-Skin/releases"><img alt="Total downloads" src="https://img.shields.io/github/downloads/CCDawn/Codex-Dynamic-Skin/total?style=flat-square&color=ad6fe8"></a>
+  <a href="https://github.com/CCDawn/Codex-Dynamic-Skin/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/CCDawn/Codex-Dynamic-Skin/ci.yml?branch=main&style=flat-square&label=CI"></a>
+  <a href="./LICENSE"><img alt="MIT License" src="https://img.shields.io/github/license/CCDawn/Codex-Dynamic-Skin?style=flat-square"></a>
 </p>
 
 <p align="center">
@@ -21,15 +21,15 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/releases/latest/download/CodexDreamSkinManager.exe"><strong>Download Windows EXE</strong></a>
+  <a href="https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest/download/CodexDreamSkinManager.exe"><strong>Download Windows EXE</strong></a>
   ·
   <a href="#macos-installation">Install on macOS</a>
   ·
   <a href="./docs/showcase.en.md">View showcase</a>
   ·
-  <a href="https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/discussions">Join discussions</a>
+  <a href="https://github.com/CCDawn/Codex-Dynamic-Skin/discussions">Join discussions</a>
   ·
-  <a href="https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/issues">Report an issue</a>
+  <a href="https://github.com/CCDawn/Codex-Dynamic-Skin/issues">Report an issue</a>
 </p>
 
 > Unofficial and not affiliated with OpenAI. Codex 动态壁纸 injects themes through loopback-only `127.0.0.1` CDP. It does not modify WindowsApps, `.app`, `app.asar`, or the official code signature.
@@ -45,13 +45,13 @@
 
 ## Windows: start in 30 seconds
 
-1. Download [`CodexDreamSkinManager.exe`](https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/releases/latest/download/CodexDreamSkinManager.exe).
+1. Download [`CodexDreamSkinManager.exe`](https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest/download/CodexDreamSkinManager.exe).
 2. Run it and choose **添加壁纸** to import a PNG, JPEG, WebP, MP4, or WebM wallpaper.
 3. Click **应用到 Codex**. Use **启动 / 重新应用** if Codex needs the skin reapplied.
 
 The manager is a self-contained single-file app with the tested wallpaper engine and Node.js runtime embedded. End users do not need the .NET SDK, Node.js, or manual PowerShell commands.
 
-> Releases are currently unsigned, so Windows may show an unknown-publisher prompt. Download only from this repository's [Releases](https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/releases) page and verify the companion `.sha256` file.
+> Releases are currently unsigned, so Windows may show an unknown-publisher prompt. Download only from this repository's [Releases](https://github.com/CCDawn/Codex-Dynamic-Skin/releases) page and verify the companion `.sha256` file.
 
 ### Wallpaper reveal
 
@@ -120,7 +120,7 @@ Windows videos are transferred to the renderer in chunks and assembled into a Bl
 - The project does not modify WindowsApps, `.app`, `app.asar`, or official signatures.
 - It does not read or rewrite API keys, base URLs, model providers, or Codex conversation content.
 - Avoid running untrusted local programs while a debugging port is active; a malicious local process may attempt to access it.
-- Official Codex updates can change the DOM. If a theme stops applying, try **启动 / 重新应用** and check [Issues](https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/issues).
+- Official Codex updates can change the DOM. If a theme stops applying, try **启动 / 重新应用** and check [Issues](https://github.com/CCDawn/Codex-Dynamic-Skin/issues).
 
 ## Run from source and build
 
@@ -199,8 +199,8 @@ Thanks to [passion8.cc](https://passion8.cc/register?aff=TuPe) for sponsoring th
 
 ## Feedback and contributions
 
-- Announcements, theme sharing, and community help: [GitHub Discussions](https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/discussions).
-- Launch announcement: [Codex 动态壁纸 v1.0.0 is now available](https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/discussions/5).
+- Announcements, theme sharing, and community help: [GitHub Discussions](https://github.com/CCDawn/Codex-Dynamic-Skin/discussions).
+- Launch announcement: [Codex 动态壁纸 v1.0.0 is now available](https://github.com/CCDawn/Codex-Dynamic-Skin/discussions/5).
 - Use the [Bug / Feature issue templates](./.github/ISSUE_TEMPLATE/).
 - PRs should include the platform, reproduction or goal, validation command, and restore test.
 - Contribution guide: [中文](./.github/CONTRIBUTING.md) · [English](./.github/CONTRIBUTING.en.md)

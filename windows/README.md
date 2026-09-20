@@ -8,7 +8,7 @@ Codex 动态壁纸通过本机回环 CDP 给官方 Codex Windows 桌面应用加
 
 ## 普通用户：下载 EXE
 
-1. 下载 [`CodexDreamSkinManager.exe`](https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/releases/latest/download/CodexDreamSkinManager.exe)。
+1. 下载 [`CodexDreamSkinManager.exe`](https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest/download/CodexDreamSkinManager.exe)。
 2. 双击运行，点击「添加壁纸」导入图片或视频。
 3. 选择壁纸并点击「应用到 Codex」；需要时点击「启动 / 重新应用」。
 
@@ -174,7 +174,7 @@ Get-AppxPackage -Name OpenAI.Codex
 
 重新运行安装器和启动快捷方式。脚本会重新发现当前注册的 Store 包，不依赖旧版本的可执行文件路径。
 
-提交问题时请从仓库的 [Issue 提交页](https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/issues/new/choose) 选择 Bug 模板，附上系统版本、Codex 来源、复现步骤和相关日志片段。请删除密钥、`auth.json`、中转 token 和私人对话内容。
+提交问题时请从仓库的 [Issue 提交页](https://github.com/CCDawn/Codex-Dynamic-Skin/issues/new/choose) 选择 Bug 模板，附上系统版本、Codex 来源、复现步骤和相关日志片段。请删除密钥、`auth.json`、中转 token 和私人对话内容。
 
 ## 安全边界
 

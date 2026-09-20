@@ -8,7 +8,7 @@ Codex 动态壁纸 loads an external theme into the official Codex Windows deskt
 
 ## For users: download the EXE
 
-1. Download [`CodexDreamSkinManager.exe`](https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/releases/latest/download/CodexDreamSkinManager.exe).
+1. Download [`CodexDreamSkinManager.exe`](https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest/download/CodexDreamSkinManager.exe).
 2. Run it and choose **添加壁纸** to import an image or video.
 3. Select a wallpaper and choose **应用到 Codex**. Use **启动 / 重新应用** when needed.
 
@@ -169,7 +169,7 @@ Launch Codex through the `Codex 动态壁纸` shortcut, then run verification. A
 
 Run the installer and launch shortcut again. The scripts rediscover the currently registered Store package instead of trusting an executable path from an older app version.
 
-Open the repository's [new issue page](https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/issues/new/choose) and choose the bug form when reporting a problem. Include the Windows version, Codex source, reproduction steps, and relevant log lines. Remove secrets, `auth.json`, relay tokens, and private conversation content.
+Open the repository's [new issue page](https://github.com/CCDawn/Codex-Dynamic-Skin/issues/new/choose) and choose the bug form when reporting a problem. Include the Windows version, Codex source, reproduction steps, and relevant log lines. Remove secrets, `auth.json`, relay tokens, and private conversation content.
 
 ## Security boundaries
 

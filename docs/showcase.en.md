@@ -68,4 +68,4 @@ Generate a UI-free `2560 × 1440` asset with the [reference prompt guide](./refe
 
 ---
 
-[Download Windows EXE](https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/releases/latest/download/CodexDreamSkinManager.exe) · [Project home](../README.en.md)
+[Download Windows EXE](https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest/download/CodexDreamSkinManager.exe) · [Project home](../README.en.md)

@@ -1,10 +1,10 @@
 # 宣传文案（可直接发）
 
-仓库：https://github.com/CCDawn/Codex-Dream-Skin-Enhanced
+仓库：https://github.com/CCDawn/Codex-Dynamic-Skin
 
-Windows 下载：https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/releases/latest/download/CodexDreamSkinManager.exe
+Windows 下载：https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest/download/CodexDreamSkinManager.exe
 
-GitHub 公告：https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/discussions/5
+GitHub 公告：https://github.com/CCDawn/Codex-Dynamic-Skin/discussions/5
 
 ---
 
@@ -24,11 +24,11 @@ Codex 现在可以直接换主题和动态壁纸了。
 
 开源地址：
 
-https://github.com/CCDawn/Codex-Dream-Skin-Enhanced
+https://github.com/CCDawn/Codex-Dynamic-Skin
 
 Windows 直接下载：
 
-https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/releases/latest/download/CodexDreamSkinManager.exe
+https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest/download/CodexDreamSkinManager.exe
 
 ## 即刻版
 
@@ -39,10 +39,10 @@ https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/releases/latest/download/Cod
 实现上只连接本机 `127.0.0.1` CDP，不改 WindowsApps、`app.asar` 或官方代码签名。
 
 项目：
-https://github.com/CCDawn/Codex-Dream-Skin-Enhanced
+https://github.com/CCDawn/Codex-Dynamic-Skin
 
 下载：
-https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/releases/latest/download/CodexDreamSkinManager.exe
+https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest/download/CodexDreamSkinManager.exe
 
 #Codex #OpenAI #开源项目 #Windows #动态壁纸
 
@@ -103,11 +103,11 @@ Windows 版本现在提供完整图形化管理器：
 
 项目主页：
 
-https://github.com/CCDawn/Codex-Dream-Skin-Enhanced
+https://github.com/CCDawn/Codex-Dynamic-Skin
 
 Windows 下载：
 
-https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/releases/latest/download/CodexDreamSkinManager.exe
+https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest/download/CodexDreamSkinManager.exe
 
 ## 英文短版
 
@@ -120,9 +120,9 @@ https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/releases/latest/download/Cod
 - No official app package modification
 - One-click restore
 
-GitHub: https://github.com/CCDawn/Codex-Dream-Skin-Enhanced
+GitHub: https://github.com/CCDawn/Codex-Dynamic-Skin
 
-Windows: https://github.com/CCDawn/Codex-Dream-Skin-Enhanced/releases/latest/download/CodexDreamSkinManager.exe
+Windows: https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest/download/CodexDreamSkinManager.exe
 
 ## 标签建议
 
