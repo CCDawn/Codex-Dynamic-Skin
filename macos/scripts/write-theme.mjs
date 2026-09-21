@@ -113,26 +113,30 @@ const canonicalOutputDir = await fs.realpath(outputDir);
 const imagePath = await fs.realpath(path.join(canonicalOutputDir, image));
 assertContainedPath(canonicalOutputDir, imagePath, "image");
 const imageStat = await fs.stat(imagePath);
-if (!imageStat.isFile() || imageStat.size < 1 || imageStat.size > 16 * 1024 * 1024) {
-  throw new Error("The prepared theme image must be non-empty and no larger than 16 MB.");
+if (!imageStat.isFile() || imageStat.size < 1 || imageStat.size > 10 * 1024 * 1024) {
+  throw new Error("The prepared theme image must be non-empty and no larger than 10 MB.");
 }
 
 const name = validateText(valueFor("name", "我的 Codex Dream Skin"), "name", 80, "我的 Codex Dream Skin");
 const tagline = validateText(
   valueFor("tagline", "把喜欢的画面变成可交互的 Codex 工作台。"),
   "tagline",
-  160,
+  120,
   "把喜欢的画面变成可交互的 Codex 工作台。",
 );
 const quote = validateText(
   valueFor("quote", "MAKE SOMETHING WONDERFUL"),
   "quote",
-  80,
+  120,
   "MAKE SOMETHING WONDERFUL",
 );
 const appearance = validateChoice(valueFor("appearance", "auto"), "appearance", ["auto", "light", "dark"]);
 const safeArea = validateChoice(valueFor("safe-area", "auto"), "safe-area", ["auto", "left", "right", "center", "none"]);
-const taskMode = validateChoice(valueFor("task-mode", "auto"), "task-mode", ["auto", "ambient", "banner", "off"]);
+const taskMode = validateChoice(
+  valueFor("task-mode", "auto"),
+  "task-mode",
+  ["auto", "ambient", "banner", "full", "off"],
+);
 const focusX = hasValue("focus-x") ? validateUnit(valueFor("focus-x"), "focus-x") : null;
 const focusY = hasValue("focus-y") ? validateUnit(valueFor("focus-y"), "focus-y") : null;
 

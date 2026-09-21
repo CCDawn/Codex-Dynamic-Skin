@@ -6,11 +6,11 @@ Chinese guide: [`reference-background-prompt-guide.md`](./reference-background-p
 
 > Public prompts default to an original fictional adult. They do not name or imitate a celebrity, private individual, copyrighted character, or living artist's signature style. Use an authorized identity reference only when you hold the necessary likeness and asset rights. Generated artwork is not an official OpenAI/Codex visual or endorsement.
 
-## Current Tested Feature: Arina Hashimoto
+## Source-Only Reference: Arina Hashimoto (Excluded From Public Packages)
 
-- **Switchable theme:** `macos/presets/preset-romantic-rose/`; Windows seeds from `windows/assets/theme.json` plus the byte-identical `windows/assets/dream-reference.jpg`. Both installers seed Arina Hashimoto.
-- **User-supplied pure source:** `docs/images/presets/romantic-rose-source.png` (`1672 × 941`). The preset's `2560 × 1440` JPEG is a standardized release derivative and does not create additional source detail.
-- **Real runtime results:** `romantic-rose-light.jpg` and `romantic-rose-dark.jpg` are light/dark screenshots for preview only. They are not importable wallpapers.
+- **Source-only switchable reference:** `macos/presets/preset-arina-hashimoto/`; source Windows runs can use `windows/assets/theme.json` plus the byte-identical `windows/assets/dream-reference.jpg`. Public DMG and Setup.exe exclude these files and seed only the rights-reviewed Gothic Void Crusade.
+- **User-supplied pure source:** `docs/images/presets/arina-hashimoto-source.png` (`1672 × 941`). The preset's `2560 × 1440` JPEG is a standardized release derivative and does not create additional source detail.
+- **Real runtime results:** `arina-hashimoto-light.jpg` and `arina-hashimoto-dark.jpg` are light/dark screenshots for preview only. They are not importable wallpapers.
 - **Relationship to earlier examples:** this is the current tested preset, not `docs/images/gallery/skin-01.jpg` and not one of the skin-01–08 concept mockups. skin-01 contributes only a related pink-rose direction and UI-copy reference.
 
 The user describes this material as an Arina Hashimoto reference version, and the maintainer explicitly directed that its source, switchable preset, and runtime previews be included in the repository. That records the intended reference and inclusion decision; it is not a likeness, generation, or redistribution license. `macos/NOTICE.md` excludes the listed files from the MIT software license, and users and downstream distributors must review the relevant rights independently. The public copy-ready prompt below still uses an original fictional adult.
@@ -21,18 +21,17 @@ The “effect” shown in a README is not automatically an importable wallpaper.
 
 | Type | Repository path | What it is | A complete theme? |
 |---|---|---|---|
-| **Current featured preset** | `macos/presets/preset-romantic-rose/`; Windows seeds from `windows/assets/theme.json` plus the byte-identical `dream-reference.jpg` | A cross-platform theme pack containing a UI-free wallpaper; both installers seed Arina Hashimoto | **Yes** |
-| **Bundled abstract presets** | `macos/presets/preset-{midnight-aurora,sakura-dawn,amber-dusk,forest-mist,cyber-neon}/` | Procedurally generated theme packs | **Yes** |
-| **Pure source art** | `docs/images/presets/romantic-rose-source.png` | User-supplied source wallpaper around `1672 × 941`; no `theme.json` | **No**; it can be selected as an image, but is not a complete pack |
-| **Real injected previews** | `docs/images/presets/romantic-rose-light.jpg`, `romantic-rose-dark.jpg` | Light/dark Codex screenshots containing real controls | **No** |
+| **Source-only reference preset** | `macos/presets/preset-arina-hashimoto/`; source Windows runs use `windows/assets/theme.json` plus the byte-identical `dream-reference.jpg` | Use locally only after an independent rights review; public DMG/Setup.exe use Gothic Void Crusade instead | **Only in an authorized local source checkout** |
+| **Pure source art** | `docs/images/presets/arina-hashimoto-source.png` | User-supplied source wallpaper around `1672 × 941`; no `theme.json` | **No**; it can be selected as an image, but is not a complete pack |
+| **Real injected previews** | `docs/images/presets/arina-hashimoto-light.jpg`, `arina-hashimoto-dark.jpg` | Light/dark Codex screenshots containing real controls | **No** |
 | **Concept gallery** | `docs/images/gallery/skin-01.jpg`–`skin-08.jpg` | UI effect mockups used only to communicate visual directions | **No** |
 | **Experimental/history images** | `docs/images/banner-*.png`, `docs/images/generated-*.png` | Unapproved local experiments or references | **No**; do not ship without rights/provenance review |
 
 `docs/images/hero-banner-red-white.png` and `macos/assets/portal-hero.png` are legacy 3:1 banner assets, not the current 16:9 universal-theme master. Do not substitute either for `preset-*/background.jpg` unless the output is intentionally homepage-banner-only.
 
-Rule of thumb: **switch themes from `macos/presets/preset-*`; generate from this guide; study directions in `docs/images/gallery/`; inspect runtime results in `docs/images/presets/*-light.jpg` / `*-dark.jpg`.** A `theme.json` and a `background.jpg` in the same `preset-*` directory form a seedable theme; `docs/images/` is documentation/archive space, not a mirror of the theme library.
+Rule of thumb: **public installers default to Gothic Void Crusade; use the source-only reference preset locally only after a rights review.** Generate from this guide; study directions in `docs/images/gallery/`; inspect runtime results in `docs/images/presets/*-light.jpg` / `*-dark.jpg`. A `theme.json` and a `background.jpg` in the same `preset-*` directory form a seedable theme; `docs/images/` is documentation/archive space, not a mirror of the theme library.
 
-Path classification is not a likeness or redistribution license. The current `preset-romantic-rose` contains user-provided human/AI portrait material included at the maintainer's direction. Public repository inclusion neither grants nor proves likeness, generation, commercial-use, or further-redistribution rights; see `macos/NOTICE.md` for the file-level boundary.
+Path classification is not a likeness or redistribution license. The current `preset-arina-hashimoto` contains user-provided human/AI portrait material included at the maintainer's direction. Public repository inclusion neither grants nor proves likeness, generation, commercial-use, or further-redistribution rights; see `macos/NOTICE.md` for the file-level boundary.
 
 Save new generations outside the repository while drafting and run the acceptance checklist at the end. Only after approval should you export the **pure wallpaper** as `background.jpg` beside its `theme.json` in a new `macos/presets/preset-<slug>/`. Do not place drafts, UI screenshots, or unverified human-likeness images in `docs/images/` and assume they become switchable themes.
 
@@ -102,7 +101,7 @@ Keep subtle midtone texture in the left zone so it remains usable beneath either
 
 Every complete prompt below follows the same order: **use/asset type → canvas and layout → reference contract → scene and one primary subject → capture/medium → materials → lighting → palette → invariants → targeted exclusions**. Keep that order when adapting a prompt. Concrete visible objects, materials, and light behavior are more useful than a stack of vague quality adjectives.
 
-## Public Baseline: Copy-Ready Romantic Rose With An Original Fictional Adult
+## Public Baseline: Copy-Ready Soft Rose With An Original Fictional Adult
 
 ```text
 Use case: photorealistic-natural
@@ -131,7 +130,7 @@ Avoid: screenshot, UI, UX, GUI, software window, browser, mockup, title bar, men
 
 ## Custom Environment Template
 
-Replace every `[REPLACE: ...]` field before generation. Do not append the full Romantic Rose prompt as well.
+Replace every `[REPLACE: ...]` field before generation. Do not append the full Soft Rose prompt as well.
 
 ```text
 Use case: stylized-concept

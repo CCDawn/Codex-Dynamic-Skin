@@ -6,11 +6,11 @@
 
 English guide: [`reference-background-prompt-guide.en.md`](./reference-background-prompt-guide.en.md)
 
-## 当前实测精选置顶：桥本有菜
+## 当前源码参考：桥本有菜（不随公开安装包提供）
 
-- **实际可切换主题**：`macos/presets/preset-romantic-rose/`；Windows 使用 `windows/assets/theme.json` 与 byte-identical 的 `windows/assets/dream-reference.jpg` 组成播种源，两端首装都会播种「桥本有菜」。
-- **用户提供的纯背景源图**：`docs/images/presets/romantic-rose-source.png`（`1672 × 941`）；preset 中的 `2560 × 1440` JPEG 是标准化发行副本，不会凭空增加源图细节。
-- **真实运行效果**：`romantic-rose-light.jpg` 与 `romantic-rose-dark.jpg` 是浅色/暗色实机截图，只用于预览，不能导入为背景。
+- **源码中的可切换参考主题**：`macos/presets/preset-arina-hashimoto/`；源码 Windows 运行时使用 `windows/assets/theme.json` 与 byte-identical 的 `windows/assets/dream-reference.jpg`。公开 DMG 和 Setup.exe 不包含这套素材，公开包只播种已确认可分发的 Gothic Void Crusade。
+- **用户提供的纯背景源图**：`docs/images/presets/arina-hashimoto-source.png`（`1672 × 941`）；preset 中的 `2560 × 1440` JPEG 是标准化发行副本，不会凭空增加源图细节。
+- **真实运行效果**：`arina-hashimoto-light.jpg` 与 `arina-hashimoto-dark.jpg` 是浅色/暗色实机截图，只用于预览，不能导入为背景。
 - **与历史示例的关系**：它是当前实际预设，不是 `docs/images/gallery/skin-01.jpg`，也不是 skin-01～08 的概念效果图。skin-01 只提供相近的粉色玫瑰视觉方向和 UI 文案参考。
 
 该素材由用户说明为桥本有菜参考版，并按维护者明确要求作为源图、可切换预设和实机预览随仓库收录；这只记录素材指向与收录决定，不构成肖像、生成或再分发授权声明。`macos/NOTICE.md` 已将相关文件排除在 MIT 软件许可之外，使用者与下游分发者仍需独立核验相应权利。下面的公共可复制提示词继续使用原创虚构成年人物。
@@ -21,18 +21,17 @@ README 里的“效果图”不等于可以导入的背景。下面这些文件�
 
 | 类型 | 仓库路径 | 作用 | 能否直接作为完整主题导入 |
 |---|---|---|---|
-| **实际可切换预设（当前置顶）** | `macos/presets/preset-romantic-rose/`；Windows 的播种源为 `windows/assets/theme.json` + byte-identical 的 `dream-reference.jpg` | 两端都会播种「桥本有菜」；macOS 用脚本/菜单栏切换，Windows 用系统托盘切换 | **可以** |
-| **实际可切换抽象预设** | `macos/presets/preset-{midnight-aurora,sakura-dawn,amber-dusk,forest-mist,cyber-neon}/` | 仓库内置的程序化抽象主题包 | **可以** |
-| **纯背景源图** | `docs/images/presets/romantic-rose-source.png` | 用户提供的原始纯背景，约 `1672 × 941`；只有图片，没有 `theme.json` | **不能作为完整主题**；可手动换图，但应先检查比例和裁切 |
-| **真实实机效果预览** | `docs/images/presets/romantic-rose-light.jpg`、`romantic-rose-dark.jpg` | 浅色/暗色 Codex 注入截图，包含真实侧栏、卡片和输入框 | **不可以** |
+| **源码参考预设（非公开包）** | `macos/presets/preset-arina-hashimoto/`；源码 Windows 播种源为 `windows/assets/theme.json` + byte-identical 的 `dream-reference.jpg` | 仅在本地源码且完成权利核验后使用；公开 DMG/Setup.exe 改用 Gothic Void Crusade | **仅限获权的本地源码场景** |
+| **纯背景源图** | `docs/images/presets/arina-hashimoto-source.png` | 用户提供的原始纯背景，约 `1672 × 941`；只有图片，没有 `theme.json` | **不能作为完整主题**；可手动换图，但应先检查比例和裁切 |
+| **真实实机效果预览** | `docs/images/presets/arina-hashimoto-light.jpg`、`arina-hashimoto-dark.jpg` | 浅色/暗色 Codex 注入截图，包含真实侧栏、卡片和输入框 | **不可以** |
 | **概念效果图** | `docs/images/gallery/skin-01.jpg` ～ `skin-08.jpg` | 只表达八种视觉方向的带 UI 示例；配套的 `background-generation-prompts.md` 按这些方向拆解 | **不可以** |
 | **实验/历史图片** | `docs/images/banner-*.png`、`docs/images/generated-*.png` | 尚未批准的本地实验图或参考图；不属于任何 preset pack | **不可以**，也不要未经权利核验放进发行包 |
 
 `docs/images/hero-banner-red-white.png` 与 `macos/assets/portal-hero.png` 是旧的 3:1 横幅资源，不是当前 16:9 通用主题母版；除非明确只做首页横幅，否则不要拿它们替代 `preset-*/background.jpg`。
 
-一句话判断：**要切换主题看 `macos/presets/preset-*`；要生成新图看本指南；要看视觉方向看 `docs/images/gallery/`；要看真实运行结果看 `docs/images/presets/*-light.jpg` / `*-dark.jpg`。** `theme.json` 和 `background.jpg` 同在一个 `preset-*` 目录时才是一套可播种的主题；`docs/images/` 是文档/归档目录，不是主题库的镜像。
+一句话判断：**公开安装包的默认主题是 Gothic Void Crusade；源码中的参考主题仅在完成权利核验后本地切换。** 要生成新图看本指南；要看视觉方向看 `docs/images/gallery/`；要看真实运行结果看 `docs/images/presets/*-light.jpg` / `*-dark.jpg`。`theme.json` 和 `background.jpg` 同在一个 `preset-*` 目录时才是一套可播种的主题；`docs/images/` 是文档/归档目录，不是主题库的镜像。
 
-路径分类不代表肖像或再分发许可。当前 `preset-romantic-rose` 含维护者指示收录的用户提供真人/AI 肖像素材；仓库公开包含这些文件并不授予或证明肖像、生成、商业使用或再次分发权利，具体边界以 `macos/NOTICE.md` 为准。
+路径分类不代表肖像或再分发许可。当前 `preset-arina-hashimoto` 含维护者指示收录的用户提供真人/AI 肖像素材；仓库公开包含这些文件并不授予或证明肖像、生成、商业使用或再次分发权利，具体边界以 `macos/NOTICE.md` 为准。
 
 生成新图时先在仓库外保存草稿并按文末清单验收；通过后，才把**纯背景**等比导出为 `background.jpg`，与对应的 `theme.json` 放进新的 `macos/presets/preset-<slug>/`。不要把草稿、带 UI 的截图或未核验真人图放进 `docs/images/` 再误以为它会成为可切换主题。
 
@@ -102,7 +101,7 @@ README 里的“效果图”不等于可以导入的背景。下面这些文件�
 
 下面的完整 Prompt 都按同一顺序编写：**用途/资产类型 → 画布与构图 → 参考图合约 → 场景与单一主体 → 拍摄/媒介 → 材质 → 光线 → 色板 → 不可变条件 → 针对性排除项**。复制时保留这个顺序，不要只留下“精美、高级、8K”之类形容词；可见的物件、材质和光线比空泛质量词更有用。
 
-## 公共通用基线：浪漫玫瑰纯背景（原创虚构成年人物）
+## 公共通用基线：柔光玫瑰纯背景（原创虚构成年人物）
 
 这段不包含姓名、签名、小照片、文案或任何 UI，可以直接生成当前精选预设同方向的背景：
 
@@ -133,7 +132,7 @@ Avoid: screenshot, UI, UX, GUI, software window, browser, mockup, title bar, men
 
 ## 模板 A：无人物通用背景
 
-下面是可改写模板。复制前必须把所有 `[REPLACE: ...]` 替换为具体内容；不要再额外粘贴上面的浪漫玫瑰段落。
+下面是可改写模板。复制前必须把所有 `[REPLACE: ...]` 替换为具体内容；不要再额外粘贴上面的柔光玫瑰段落。
 
 ```text
 Use case: stylized-concept

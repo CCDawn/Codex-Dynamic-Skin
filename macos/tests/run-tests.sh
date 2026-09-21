@@ -12,6 +12,24 @@ while IFS= read -r file; do /bin/bash -n "$file"; done < <(
 while IFS= read -r file; do "$NODE" --check "$file" >/dev/null; done < <(
   /usr/bin/find "$ROOT/scripts" "$ROOT/assets" "$ROOT/presets" -type f \( -name '*.mjs' -o -name '*.js' \) -print
 )
+# `bash -n` accepts a bare $var abutting full-width CJK punctuation, but the
+# same source aborts at runtime under a UTF-8 locale with `set -u` and masks
+# the real failure behind a bogus "unbound variable" (#251).
+"$NODE" "$ROOT/tests/shell-braced-vars-before-cjk.test.mjs"
+"$NODE" --test "$ROOT/tests/restart-cancellation.test.mjs"
+
+ZH_COPY="$(DREAMSKIN_LANG=zh-CN /bin/bash -c '
+  . "$1/scripts/localization-macos.sh"
+  printf "%s|%s|%s" "$(dreamskin_language)" "$(dreamskin_text apply)" "$(dreamskin_text skin_applied)"
+' _ "$ROOT")"
+EN_COPY="$(DREAMSKIN_LANG=en-US /bin/bash -c '
+  . "$1/scripts/localization-macos.sh"
+  printf "%s|%s|%s" "$(dreamskin_language)" "$(dreamskin_text apply)" "$(dreamskin_text skin_applied)"
+' _ "$ROOT")"
+[ "$ZH_COPY" = 'zh|应用|皮肤已应用' ] \
+  || { printf 'Chinese runtime localization contract failed: %s\n' "$ZH_COPY" >&2; exit 1; }
+[ "$EN_COPY" = 'en|Apply|Skin applied' ] \
+  || { printf 'English runtime localization contract failed: %s\n' "$EN_COPY" >&2; exit 1; }
 
 if /usr/bin/grep -R -n -E 'dream-skin-skin|DREAM_SKIN_SKIN|1\.0\.0-rc2' \
   "$ROOT/scripts" "$ROOT/assets" >/dev/null; then
@@ -41,21 +59,204 @@ if ! /usr/bin/grep -F -q 'flag: "wx"' "$ROOT/scripts/write-theme.mjs"; then
   printf 'Theme writes must create randomized temporary files exclusively.\n' >&2
   exit 1
 fi
+if /usr/bin/grep -E -q 'Input\.dispatch(KeyEvent|MouseEvent)' "$ROOT/scripts/injector.mjs"; then
+  printf 'Screenshot capture must not dispatch renderer input events.\n' >&2
+  exit 1
+fi
+if /usr/bin/grep -F -q 'CODEX_EXPECTED_TEAM_ID' "$ROOT/scripts/common-macos.sh" ||
+    [ "$(/usr/bin/grep -F -c -- '--test-requirement' "$ROOT/scripts/common-macos.sh")" -lt 3 ]; then
+  printf 'macOS runtime identity must use the fixed OpenAI signing requirement.\n' >&2
+  exit 1
+fi
+
+# The native menu bar control plane and XCTest require a complete, matching
+# Xcode platform. CommandLineTools-only hosts report this platform blocker;
+# build-menubar-app.sh is still independently verifiable with DREAMSKIN_SDK.
+if /usr/bin/xcrun --sdk macosx --show-sdk-platform-path >/dev/null 2>&1; then
+  /usr/bin/swift build --package-path "$ROOT/menubar-app" --product CodexDreamSkinMenuBar
+  /usr/bin/swift test --package-path "$ROOT/menubar-app"
+else
+  printf 'SKIP: native SwiftPM build/XCTest require a full matching Xcode macOS platform.\n'
+fi
+/usr/bin/plutil -lint "$ROOT/menubar-app/Resources/Info.plist.template" >/dev/null
+/usr/bin/grep -F -q '<key>LSUIElement</key>' "$ROOT/menubar-app/Resources/Info.plist.template"
+/usr/bin/grep -F -q '<key>LSMinimumSystemVersion</key>' "$ROOT/menubar-app/Resources/Info.plist.template"
+/usr/bin/grep -F -q '<key>CFBundleURLSchemes</key>' "$ROOT/menubar-app/Resources/Info.plist.template"
+/usr/bin/grep -F -q '<string>dreamskin</string>' "$ROOT/menubar-app/Resources/Info.plist.template"
+/usr/bin/grep -F -q '"assets/selectors.json"' \
+  "$ROOT/menubar-app/Sources/CodexDreamSkinMenuBar/AppDelegate.swift"
+/usr/bin/grep -F -q 'CommunityRecovery.preserveRollbackSnapshot' \
+  "$ROOT/menubar-app/Sources/CodexDreamSkinMenuBar/AppDelegate.swift"
+/usr/bin/grep -F -q 'recovery/community-*/active-before' \
+  "$ROOT/scripts/switch-theme-macos.sh"
+/usr/bin/grep -F -q 'CFBundleURLTypes.0.CFBundleURLSchemes.0' "$ROOT/scripts/build-dmg.sh"
+for required_runtime in apply-community-theme-macos.sh snapshot-active-theme-macos.sh \
+  theme-content-fingerprint.mjs theme-switch-lock-macos.sh localization-macos.sh; do
+  /usr/bin/grep -F -q "$required_runtime" "$ROOT/scripts/build-dmg.sh"
+done
+UPDATE_JSON="$({
+  CODEX_DREAM_SKIN_TEST_RESPONSE_FILE="$ROOT/tests/fixtures/latest-release.json" \
+    "$ROOT/scripts/check-update-macos.sh" --json
+})"
+"$NODE" -e '
+  const value = JSON.parse(process.argv[1]);
+  if (value.currentVersion !== "v1.5.18" || value.latestVersion !== "v9.8.7") process.exit(1);
+  if (!value.updateAvailable) process.exit(1);
+  if (value.releaseUrl !== "https://github.com/Fei-Away/Codex-Dream-Skin/releases/latest") process.exit(1);
+' "$UPDATE_JSON"
+UPDATE_REDIRECT_JSON="$({
+  CODEX_DREAM_SKIN_TEST_REDIRECT_HEADERS_FILE="$ROOT/tests/fixtures/latest-release.headers" \
+    "$ROOT/scripts/check-update-macos.sh" --json
+})"
+"$NODE" -e '
+  const value = JSON.parse(process.argv[1]);
+  if (value.currentVersion !== "v1.5.18" || value.latestVersion !== "v9.8.7") process.exit(1);
+  if (!value.updateAvailable) process.exit(1);
+  if (value.releaseUrl !== "https://github.com/Fei-Away/Codex-Dream-Skin/releases/latest") process.exit(1);
+' "$UPDATE_REDIRECT_JSON"
+"$NODE" --test "$ROOT/tests/update-fallback.test.mjs"
+if /usr/bin/grep -R -n -E --exclude-dir='.build' \
+  --exclude-dir='.build-*' \
+  'xattr|spctl[[:space:]]+--master-disable' \
+  "$ROOT/menubar-app" "$ROOT/scripts/build-menubar-app.sh" "$ROOT/scripts/build-dmg.sh" >/dev/null; then
+  printf 'Native distribution must not bypass Gatekeeper or remove quarantine attributes.\n' >&2
+  exit 1
+fi
+if /usr/bin/grep -n -F -q 'xattr' \
+  "$ROOT/scripts/build-client-release.sh" "$ROOT/scripts/build-release.sh" >/dev/null; then
+  printf 'Standalone release builders must not strip quarantine or include the restricted Arina preset.\n' >&2
+  exit 1
+fi
+if ! /usr/bin/grep -F -q "presets/preset-arina-hashimoto/" \
+  "$ROOT/scripts/build-client-release.sh" "$ROOT/scripts/build-release.sh"; then
+  printf 'Standalone release builders must explicitly exclude the restricted Arina preset.\n' >&2
+  exit 1
+fi
+if ! /usr/bin/grep -F -q 'DEPLOY_PREVIOUS' "$ROOT/scripts/install-dream-skin-macos.sh" ||
+   ! /usr/bin/grep -F -q 'rollback_deployed_project' "$ROOT/scripts/install-dream-skin-macos.sh"; then
+  printf 'The macOS outer installer must roll back a failed engine deployment.\n' >&2
+  exit 1
+fi
+if ! /usr/bin/grep -F -q 'INSTALL_ROOT.broken' "$ROOT/scripts/install-dream-skin-macos.sh"; then
+  printf 'Installer rollback must detach the broken engine with a rename instead of rm -rf on the live root.\n' >&2
+  exit 1
+fi
+INSTALL_GUARD_LINE="$(/usr/bin/grep -n 'codex_is_running && fail "Close Codex before installation' \
+  "$ROOT/scripts/install-dream-skin-macos.sh" | /usr/bin/head -1 | /usr/bin/cut -d: -f1)"
+INSTALL_DISCOVER_LINE="$(/usr/bin/grep -n '^discover_codex_app$' \
+  "$ROOT/scripts/install-dream-skin-macos.sh" | /usr/bin/head -1 | /usr/bin/cut -d: -f1)"
+INSTALL_DEPLOY_LINE="$(/usr/bin/grep -n '^  deploy_project$' \
+  "$ROOT/scripts/install-dream-skin-macos.sh" | /usr/bin/head -1 | /usr/bin/cut -d: -f1)"
+if [ -z "$INSTALL_DISCOVER_LINE" ] || [ -z "$INSTALL_GUARD_LINE" ] ||
+   [ -z "$INSTALL_DEPLOY_LINE" ] ||
+   [ "$INSTALL_DISCOVER_LINE" -ge "$INSTALL_GUARD_LINE" ] ||
+   [ "$INSTALL_GUARD_LINE" -ge "$INSTALL_DEPLOY_LINE" ]; then
+  printf 'App discovery and the Codex-running guard must run in order before deploy_project.\n' >&2
+  exit 1
+fi
+if /usr/bin/grep -F -q \
+  'message: "请先退出 ChatGPT，再从菜单选择“安装 / 升级引擎”。' \
+  "$ROOT/menubar-app/Sources/CodexDreamSkinMenuBar/AppDelegate.swift"; then
+  printf 'The menu bar must not attribute every engine-install failure to ChatGPT still running.\n' >&2
+  exit 1
+fi
+if ! /usr/bin/grep -F -q '# CodexDreamSkinStudio launcher' \
+   "$ROOT/scripts/restore-dream-skin-macos.sh"; then
+  printf 'macOS uninstall must remove only launchers owned by Dream Skin.\n' >&2
+  exit 1
+fi
+
+# Shared runtime contract: selectors and renderer/CSS sources are compiled
+# once, then staged byte-for-byte into both platform asset directories.
+PROJECT_ROOT="$(cd "$ROOT/.." && pwd -P)"
+"$NODE" "$PROJECT_ROOT/tools/sync-runtime-assets.mjs" --check
+"$NODE" "$PROJECT_ROOT/tools/doctor-selectors.test.mjs"
+if ! /usr/bin/cmp -s "$ROOT/assets/dream-skin.css" "$PROJECT_ROOT/windows/assets/dream-skin.css" ||
+    ! /usr/bin/cmp -s "$ROOT/assets/renderer-inject.js" "$PROJECT_ROOT/windows/assets/renderer-inject.js" ||
+    ! /usr/bin/cmp -s "$ROOT/assets/safe-css-policy.json" "$PROJECT_ROOT/windows/assets/safe-css-policy.json" ||
+    ! /usr/bin/cmp -s "$ROOT/assets/safe-css-validator.mjs" "$PROJECT_ROOT/windows/assets/safe-css-validator.mjs" ||
+    ! /usr/bin/cmp -s "$ROOT/assets/selectors.json" "$PROJECT_ROOT/windows/assets/selectors.json" ||
+    ! /usr/bin/cmp -s "$ROOT/assets/theme-package-validator.mjs" "$PROJECT_ROOT/windows/assets/theme-package-validator.mjs" ||
+    ! /usr/bin/cmp -s "$ROOT/scripts/validate-safe-css-file.mjs" "$PROJECT_ROOT/windows/scripts/validate-safe-css-file.mjs"; then
+  printf 'macOS and Windows runtime assets are not byte-identical.\n' >&2
+  exit 1
+fi
+if /usr/bin/grep -E -q 'getBoundingClientRect|ResizeObserver|classList\.(add|remove|toggle)|syncRouteState|samplingNativeShell' \
+    "$ROOT/assets/renderer-inject.js"; then
+  printf 'Unified renderer still contains retired layout/class behavior.\n' >&2
+  exit 1
+fi
+if /usr/bin/grep -E -q 'home-suggestion-list-item|\.dream-skin-home|\.dream-home|\.dream-task|codex-dream-skin-chrome' \
+    "$ROOT/assets/dream-skin.css"; then
+  printf 'Canonical CSS still contains retired marker classes or fossil selectors.\n' >&2
+  exit 1
+fi
+# Nesting :has() inside :has() makes Chromium drop the whole rule, so the CSS
+# still parses but ships as silently dead styling; v1.3.1 lost the full-window
+# home and every task-route ambient background that way (#221).
+"$NODE" "$ROOT/tests/runtime-css-nested-has.test.mjs"
 
 "$NODE" "$ROOT/scripts/injector.mjs" --check-payload >/dev/null
 "$NODE" "$ROOT/tests/image-metadata.test.mjs"
 "$NODE" "$ROOT/tests/injector-bootstrap.test.mjs"
+"$NODE" "$ROOT/tests/window-readiness.test.mjs"
 "$NODE" "$ROOT/tests/renderer-inject.test.mjs"
+"$NODE" "$ROOT/tests/safe-css-validator.test.mjs"
 "$NODE" "$ROOT/tests/theme-stage.test.mjs"
+"$NODE" "$ROOT/tests/theme-package-validator.test.mjs"
+"$NODE" "$ROOT/tests/theme-import-publish.test.mjs"
+"$NODE" "$ROOT/tests/theme-zip-snapshot.test.mjs"
+"$NODE" "$ROOT/tests/bounded-community-http.test.mjs"
+if [ "${CODEX_DREAM_SKIN_SKIP_SIGNED_RUNTIME_TESTS:-0}" = "1" ]; then
+  printf 'SKIP: community import identity integration requires an installed, signed ChatGPT runtime.\n'
+else
+  "$ROOT/tests/theme-import-identity.test.sh"
+fi
+"$ROOT/tests/community-apply-transaction.test.sh"
+"$ROOT/tests/theme-zip-extract.test.sh"
+"$ROOT/tests/installer-preflight.test.sh"
+"$NODE" "$ROOT/tests/theme-config.test.mjs"
+
+# check-image-dimensions rejects decompression bombs before sips can rasterize them.
+write_png_header() { # <path> <width> <height>
+  "$NODE" -e '
+    const fs = require("node:fs");
+    const buffer = Buffer.alloc(24);
+    Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]).copy(buffer, 0);
+    buffer.writeUInt32BE(13, 8);
+    buffer.write("IHDR", 12, "ascii");
+    buffer.writeUInt32BE(Number(process.argv[2]), 16);
+    buffer.writeUInt32BE(Number(process.argv[3]), 20);
+    fs.writeFileSync(process.argv[1], buffer);
+  ' "$1" "$2" "$3"
+}
+CID_TMP="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/codex-dream-skin-cid.XXXXXX")"
+write_png_header "$CID_TMP/huge.png" 20000 20000
+if "$NODE" "$ROOT/scripts/check-image-dimensions.mjs" "$CID_TMP/huge.png" >/dev/null 2>&1; then
+  printf 'check-image-dimensions accepted a 20000x20000 (400 MP) image.\n' >&2
+  /bin/rm -rf "$CID_TMP"; exit 1
+fi
+write_png_header "$CID_TMP/ok.png" 1600 900
+if ! "$NODE" "$ROOT/scripts/check-image-dimensions.mjs" "$CID_TMP/ok.png" >/dev/null 2>&1; then
+  printf 'check-image-dimensions rejected a valid 1600x900 image.\n' >&2
+  /bin/rm -rf "$CID_TMP"; exit 1
+fi
+/usr/bin/printf 'not-an-image' > "$CID_TMP/invalid.png"
+if "$NODE" "$ROOT/scripts/check-image-dimensions.mjs" "$CID_TMP/invalid.png" >/dev/null 2>&1; then
+  printf 'check-image-dimensions accepted an image whose dimensions could not be determined safely.\n' >&2
+  /bin/rm -rf "$CID_TMP"; exit 1
+fi
+/bin/rm -rf "$CID_TMP"
 
 # Every bundled preset must be a valid, injectable theme pack with a preset-* id.
 for preset in "$ROOT"/presets/preset-*/; do
   [ -d "$preset" ] || continue
+  PRESET_ID="$(/usr/bin/basename "$preset")"
   PRESET_CHECK="$("$NODE" "$ROOT/scripts/injector.mjs" --check-payload --theme-dir "$preset")"
   "$NODE" -e '
     const v = JSON.parse(process.argv[1]);
-    if (!v.pass || !String(v.themeId).startsWith("preset-") || v.imageBytes < 1) process.exit(1);
-  ' "$PRESET_CHECK"
+    if (!v.pass || v.themeId !== process.argv[2] || v.imageBytes < 1) process.exit(1);
+  ' "$PRESET_CHECK" "$PRESET_ID"
 done
 
 TMP="$(/usr/bin/mktemp -d /tmp/codex-dream-skin-tests.XXXXXX)"
@@ -87,30 +288,32 @@ STANDALONE_DOCS="$TMP/standalone-source-docs"
 /bin/mkdir -p "$STANDALONE_ROOT" \
   "$STANDALONE_DOCS/images/gallery" "$STANDALONE_DOCS/images/presets"
 /usr/bin/printf '%s\n' \
-  'macos/presets/preset-romantic-rose/ macos/assets/portal-hero.png macos/NOTICE.md windows/assets/theme.json' \
+  'macos/presets/preset-arina-hashimoto/ macos/assets/portal-hero.png macos/NOTICE.md windows/assets/theme.json' \
   > "$STANDALONE_DOCS/reference-background-prompt-guide.md"
 /bin/cp "$STANDALONE_DOCS/reference-background-prompt-guide.md" \
   "$STANDALONE_DOCS/reference-background-prompt-guide.en.md"
 /bin/cp "$STANDALONE_DOCS/reference-background-prompt-guide.md" \
   "$STANDALONE_DOCS/background-generation-prompts.md"
 : > "$STANDALONE_DOCS/images/gallery/skin-01.jpg"
-: > "$STANDALONE_DOCS/images/presets/romantic-rose-source.png"
+: > "$STANDALONE_DOCS/images/presets/arina-hashimoto-source.png"
 : > "$STANDALONE_DOCS/images/hero-banner-red-white.png"
 /usr/bin/printf '%s\n' \
-  '- `presets/preset-romantic-rose/background.jpg`' \
+  '- `presets/preset-arina-hashimoto/background.jpg`' \
   '- `../windows/assets/dream-reference.jpg`' \
-  '- `../docs/images/presets/romantic-rose-source.png`' \
+  '- `../docs/images/presets/arina-hashimoto-source.png`' \
   "They are included at the maintainer's direction as a local theme preset, source archive, and real runtime previews." \
   > "$STANDALONE_ROOT/NOTICE.md"
 "$ROOT/scripts/prepare-standalone-docs.sh" "$STANDALONE_ROOT" "$STANDALONE_DOCS"
-/usr/bin/grep -F -q 'presets/preset-romantic-rose/' \
+/usr/bin/grep -F -q 'presets/preset-arina-hashimoto/' \
   "$STANDALONE_ROOT/docs/reference-background-prompt-guide.md"
 /usr/bin/grep -F -q 'assets/portal-hero.png' \
   "$STANDALONE_ROOT/docs/reference-background-prompt-guide.md"
 /usr/bin/grep -F -q 'https://github.com/Fei-Away/Codex-Dream-Skin/blob/main/windows/assets/theme.json' \
   "$STANDALONE_ROOT/docs/reference-background-prompt-guide.md"
 [ -f "$STANDALONE_ROOT/docs/images/hero-banner-red-white.png" ]
-/usr/bin/grep -F -q '`docs/images/presets/romantic-rose-source.png`' \
+[ ! -e "$STANDALONE_ROOT/docs/images/presets/arina-hashimoto-source.png" ]
+/usr/bin/grep -F -q 'arina-hashimoto' "$STANDALONE_ROOT/NOTICE.md"
+/usr/bin/grep -F -q '`docs/images/presets/arina-hashimoto-source.png`' \
   "$STANDALONE_ROOT/NOTICE.md"
 /usr/bin/grep -F -q 'not included in this macOS archive' \
   "$STANDALONE_ROOT/NOTICE.md"
@@ -174,82 +377,235 @@ fi
   themes="$STATE_ROOT/themes"
   /bin/mkdir -p "$themes/custom-keepme"
   : > "$themes/custom-keepme/theme.json"
+  retired="preset-midnight-aurora preset-sakura-dawn preset-amber-dusk preset-forest-mist preset-cyber-neon preset-romantic-rose"
+  for id in $retired; do
+    /bin/mkdir -p "$themes/$id"
+    : > "$themes/$id/retired-marker"
+  done
   seed_bundled_presets
   seed_bundled_presets
-  [ -f "$themes/preset-midnight-aurora/theme.json" ] || exit 1
-  [ -f "$themes/preset-midnight-aurora/background.jpg" ] || exit 1
+  [ -f "$themes/preset-gothic-void-crusade/theme.json" ] || exit 1
+  [ -f "$themes/preset-gothic-void-crusade/background.jpg" ] || exit 1
+  [ -f "$themes/preset-arina-hashimoto/theme.json" ] || exit 1
+  [ -f "$themes/preset-arina-hashimoto/background.jpg" ] || exit 1
   [ -f "$themes/custom-keepme/theme.json" ] || exit 1
+  for id in $retired; do [ ! -e "$themes/$id" ] || exit 1; done
   seeded="$(/usr/bin/find "$themes" -maxdepth 1 -type d -name "preset-*" | /usr/bin/wc -l | /usr/bin/tr -d " ")"
-  [ "$seeded" -ge 4 ] || exit 1
+  [ "$seeded" -eq 2 ] || exit 1
 ' _ "$ROOT"
 
-# Theme switches stage files and publish theme.json last, preserving a complete
-# active pack while the watcher is running.
-SWITCH_HOME="$TMP/switch-home"
-SWITCH_STATE="$SWITCH_HOME/Library/Application Support/CodexDreamSkinStudio"
-/bin/mkdir -p "$SWITCH_STATE/themes/preset-switch-fixture" "$SWITCH_STATE/theme"
-/bin/cp "$ROOT/assets/portal-hero.png" "$SWITCH_STATE/themes/preset-switch-fixture/background.png"
-/usr/bin/printf '%s\n' \
-  '{"schemaVersion":1,"id":"preset-switch-fixture","name":"切换测试","image":"background.png"}' \
-  > "$SWITCH_STATE/themes/preset-switch-fixture/theme.json"
-/usr/bin/printf '%s\n' '{"schemaVersion":1,"id":"old","name":"旧主题","image":"old.png"}' \
-  > "$SWITCH_STATE/theme/theme.json"
-: > "$SWITCH_STATE/theme/old.png"
-if /usr/bin/env HOME="$SWITCH_HOME" NODE="$NODE" \
-  "$ROOT/scripts/switch-theme-macos.sh" --id '../escape' --no-apply >/dev/null 2>&1; then
-  printf 'switch-theme unexpectedly accepted a path traversal theme id.\n' >&2
-  exit 1
+run_signed_runtime_switch_test() {
+  local switch_home="$TMP/switch-home"
+  local switch_state="$switch_home/Library/Application Support/CodexDreamSkinStudio"
+  /bin/mkdir -p "$switch_state/themes/preset-switch-fixture" "$switch_state/theme"
+  /bin/cp "$ROOT/assets/portal-hero.png" "$switch_state/themes/preset-switch-fixture/background.png"
+  /usr/bin/printf '%s\n' \
+    '{"schemaVersion":1,"id":"preset-switch-fixture","name":"切换测试","image":"background.png"}' \
+    > "$switch_state/themes/preset-switch-fixture/theme.json"
+  /usr/bin/printf '%s\n' '{"schemaVersion":1,"id":"old","name":"旧主题","image":"old.png"}' \
+    > "$switch_state/theme/theme.json"
+  /bin/cp "$ROOT/assets/portal-hero.png" "$switch_state/theme/old.png"
+  /usr/bin/printf '%s\n' '[data-ds-part="root"] { color: var(--ds-theme-color-text); }' \
+    > "$switch_state/theme/theme.css"
+  /bin/mkdir "$switch_state/.community-apply-test"
+  SNAPSHOT_OUTPUT="$(/usr/bin/env HOME="$switch_home" NODE="$NODE" \
+    "$ROOT/scripts/snapshot-active-theme-macos.sh" \
+    --destination "$switch_state/.community-apply-test/active-before")"
+  SNAPSHOT_FINGERPRINT="$("$NODE" -e '
+    const value = JSON.parse(process.argv[1]);
+    if (!/^[0-9a-f]{64}$/.test(value.contentFingerprint ?? "")) process.exit(1);
+    process.stdout.write(value.contentFingerprint);
+  ' "$SNAPSHOT_OUTPUT")"
+  /usr/bin/cmp -s "$switch_state/theme/theme.json" \
+    "$switch_state/.community-apply-test/active-before/theme.json"
+  /usr/bin/cmp -s "$switch_state/theme/old.png" \
+    "$switch_state/.community-apply-test/active-before/old.png"
+  /usr/bin/cmp -s "$switch_state/theme/theme.css" \
+    "$switch_state/.community-apply-test/active-before/theme.css"
+  if /usr/bin/env HOME="$switch_home" NODE="$NODE" \
+    "$ROOT/scripts/switch-theme-macos.sh" \
+    --snapshot-dir "$switch_state/.community-apply-test/active-before" \
+    --expect-fingerprint "$SNAPSHOT_FINGERPRINT" --no-apply >/dev/null 2>&1; then
+    printf 'switch-theme unexpectedly allowed an unverified no-apply rollback.\n' >&2
+    exit 1
+  fi
+  if /usr/bin/env HOME="$switch_home" NODE="$NODE" \
+    "$ROOT/scripts/switch-theme-macos.sh" --id '../escape' --no-apply >/dev/null 2>&1; then
+    printf 'switch-theme unexpectedly accepted a path traversal theme id.\n' >&2
+    exit 1
+  fi
+  /bin/mkdir "$switch_state/.theme-switch.lock"
+  if /usr/bin/env HOME="$switch_home" NODE="$NODE" \
+    "$ROOT/scripts/switch-theme-macos.sh" --id preset-switch-fixture --no-apply >/dev/null 2>&1; then
+    printf 'switch-theme reclaimed a fresh ownerless lock during its initialization window.\n' >&2
+    exit 1
+  fi
+  /bin/rm -rf "$switch_state/.theme-switch.lock"
+  /bin/mkdir "$switch_state/.theme-switch.lock"
+  /usr/bin/printf '%s\n' "$$" > "$switch_state/.theme-switch.lock/owner"
+  if /usr/bin/env HOME="$switch_home" NODE="$NODE" \
+    "$ROOT/scripts/switch-theme-macos.sh" --id preset-switch-fixture --no-apply >/dev/null 2>&1; then
+    printf 'switch-theme ignored a live cross-process switch lock.\n' >&2
+    exit 1
+  fi
+  /bin/rm -rf "$switch_state/.theme-switch.lock"
+  LOCK_READY="$switch_state/lock-ready"
+  /usr/bin/env HOME="$switch_home" NODE="$NODE" /bin/bash -c '
+    . "$1/scripts/common-macos.sh"
+    . "$1/scripts/theme-switch-lock-macos.sh"
+    acquire_theme_switch_lock 123:1234567890123:1
+    : > "$2"
+    /bin/sleep 1
+    release_theme_switch_lock
+  ' _ "$ROOT" "$LOCK_READY" &
+  LOCK_HOLDER_PID="$!"
+  for _attempt in 1 2 3 4 5 6 7 8 9 10; do
+    [ -f "$LOCK_READY" ] && break
+    /bin/sleep 0.05
+  done
+  [ -f "$LOCK_READY" ] || { printf 'lock-holder fixture did not start.\n' >&2; exit 1; }
+  if /usr/bin/env HOME="$switch_home" NODE="$NODE" \
+    "$ROOT/scripts/switch-theme-macos.sh" --id preset-switch-fixture --no-apply >/dev/null 2>&1; then
+    printf 'two theme-switch processes entered the transaction concurrently.\n' >&2
+    exit 1
+  fi
+  wait "$LOCK_HOLDER_PID"
+  /usr/bin/chflags uchg "$switch_state/theme/theme.css"
+  if /usr/bin/env HOME="$switch_home" NODE="$NODE" \
+    "$ROOT/scripts/switch-theme-macos.sh" --id preset-switch-fixture --no-apply >/dev/null 2>&1; then
+    /usr/bin/chflags nouchg "$switch_state/theme/theme.css"
+    printf 'switch-theme committed a legacy theme before stale CSS cleanup completed.\n' >&2
+    exit 1
+  fi
+  if ! "$NODE" -e '
+    const fs = require("fs");
+    const theme = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    if (theme.id !== "old") process.exit(1);
+  ' "$switch_state/theme/theme.json"; then
+    /usr/bin/chflags nouchg "$switch_state/theme/theme.css" 2>/dev/null || true
+    printf 'switch-theme changed theme.json after stale CSS cleanup failed.\n' >&2
+    exit 1
+  fi
+  /usr/bin/chflags nouchg "$switch_state/theme/theme.css"
+  FINGERPRINT_STAGE="$switch_state/fingerprint-stage"
+  /bin/mkdir "$FINGERPRINT_STAGE"
+  FINGERPRINT_OUTPUT="$("$NODE" "$ROOT/scripts/stage-theme.mjs" \
+    "$switch_state/themes/preset-switch-fixture" "$FINGERPRINT_STAGE")"
+  EXPECTED_FINGERPRINT="$("$NODE" -e '
+    const value = JSON.parse(process.argv[1]);
+    if (!/^[0-9a-f]{64}$/.test(value.contentFingerprint ?? "")) process.exit(1);
+    process.stdout.write(value.contentFingerprint);
+  ' "$FINGERPRINT_OUTPUT")"
+  /bin/rm -rf "$FINGERPRINT_STAGE"
+  if /usr/bin/env HOME="$switch_home" NODE="$NODE" \
+    "$ROOT/scripts/switch-theme-macos.sh" --id preset-switch-fixture --no-apply \
+    --expect-fingerprint 0000000000000000000000000000000000000000000000000000000000000000 \
+    >/dev/null 2>&1; then
+    printf 'switch-theme unexpectedly accepted a stale imported-package fingerprint.\n' >&2
+    exit 1
+  fi
+  "$NODE" -e '
+    const fs = require("fs");
+    const theme = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    if (theme.id !== "old") process.exit(1);
+  ' "$switch_state/theme/theme.json"
+  /usr/bin/env HOME="$switch_home" NODE="$NODE" \
+    "$ROOT/scripts/switch-theme-macos.sh" --id preset-switch-fixture --no-apply \
+    --expect-fingerprint "$EXPECTED_FINGERPRINT" >/dev/null
+  /usr/bin/cmp -s "$switch_state/theme/background.png" \
+    "$switch_state/themes/preset-switch-fixture/background.png"
+  [ ! -e "$switch_state/theme/old.png" ]
+  [ ! -e "$switch_state/theme/theme.css" ]
+  "$NODE" -e '
+    const fs = require("fs");
+    const theme = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    if (theme.id !== "preset-switch-fixture" || theme.name !== "切换测试") process.exit(1);
+  ' "$switch_state/theme/theme.json"
+  [ -z "$(/usr/bin/find "$switch_state" -maxdepth 1 -name '.theme-switch.*' -print -quit)" ]
+}
+
+if [ "${CODEX_DREAM_SKIN_SKIP_SIGNED_RUNTIME_TESTS:-0}" = "1" ]; then
+  printf 'SKIP: switch-theme integration requires an installed, signed Codex app.\n'
+  SWITCH_RUNTIME_RESULT="skipped"
+else
+  run_signed_runtime_switch_test
+  SWITCH_RUNTIME_RESULT="passed"
 fi
-/usr/bin/env HOME="$SWITCH_HOME" NODE="$NODE" \
-  "$ROOT/scripts/switch-theme-macos.sh" --id preset-switch-fixture --no-apply >/dev/null
-/usr/bin/cmp -s "$SWITCH_STATE/theme/background.png" \
-  "$SWITCH_STATE/themes/preset-switch-fixture/background.png"
-[ ! -e "$SWITCH_STATE/theme/old.png" ]
-"$NODE" -e '
-  const fs = require("fs");
-  const theme = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-  if (theme.id !== "preset-switch-fixture" || theme.name !== "切换测试") process.exit(1);
-' "$SWITCH_STATE/theme/theme.json"
-[ -z "$(/usr/bin/find "$SWITCH_STATE" -maxdepth 1 -name '.theme-switch.*' -print -quit)" ]
 
 RUNTIME_HOME="$TMP/runtime-home"
 RUNTIME_STATE_ROOT="$RUNTIME_HOME/Library/Application Support/CodexDreamSkinStudio"
 RUNTIME_STATE="$RUNTIME_STATE_ROOT/state.json"
 STATE_EVAL_MARKER="$TMP/state-eval-marker"
-# Bundle/exe must exist for restore to trust them (Codex.app→ChatGPT.app rename),
-# so build a real bundle whose name still carries spaces/quotes. Shell-injection
-# probing moves to the version field, which restore accepts verbatim.
-EXPECTED_BUNDLE="$TMP/evil-root/Codex \"Skin\".app"
-EXPECTED_EXE="$EXPECTED_BUNDLE/Contents/MacOS/ChatGPT"
-EXPECTED_VERSION="1.1.2 \$(touch \"$STATE_EVAL_MARKER\") ; echo pwned"
-EXPECTED_TEAM_ID="TEAM'ID"
-/bin/mkdir -p "$RUNTIME_STATE_ROOT" "$EXPECTED_BUNDLE/Contents/MacOS"
-/usr/bin/printf '#!/bin/bash\ntrue\n' > "$EXPECTED_EXE"
-/bin/chmod +x "$EXPECTED_EXE"
+UNTRUSTED_NODE_MARKER="$TMP/untrusted-node-executed"
+UNTRUSTED_BUNDLE="$TMP/evil-root/Codex \"Skin\".app"
+UNTRUSTED_EXE="$UNTRUSTED_BUNDLE/Contents/MacOS/ChatGPT"
+UNTRUSTED_VERSION="1.1.2 \$(touch \"$STATE_EVAL_MARKER\") ; echo pwned"
+UNTRUSTED_TEAM_ID="TEAM'ID"
+/bin/mkdir -p "$RUNTIME_STATE_ROOT" "$UNTRUSTED_BUNDLE/Contents/MacOS"
+/usr/bin/printf '#!/bin/bash\n/usr/bin/touch "${UNTRUSTED_NODE_MARKER:?}"\nexit 97\n' > "$UNTRUSTED_EXE"
+/bin/chmod +x "$UNTRUSTED_EXE"
 "$NODE" -e '
   const fs = require("node:fs");
   const [file, codexBundle, codexExe, codexVersion, codexTeamId] = process.argv.slice(1);
   fs.writeFileSync(file, `${JSON.stringify({ codexBundle, codexExe, codexVersion, codexTeamId })}\n`);
-' "$RUNTIME_STATE" "$EXPECTED_BUNDLE" "$EXPECTED_EXE" "$EXPECTED_VERSION" "$EXPECTED_TEAM_ID"
-/usr/bin/env -u NODE -u NODE_VERSION HOME="$RUNTIME_HOME" /bin/bash -c '
+' "$RUNTIME_STATE" "$UNTRUSTED_BUNDLE" "$UNTRUSTED_EXE" "$UNTRUSTED_VERSION" "$UNTRUSTED_TEAM_ID"
+/usr/bin/env HOME="$RUNTIME_HOME" NODE="$UNTRUSTED_EXE" NODE_VERSION="untrusted" \
+  UNTRUSTED_NODE_MARKER="$UNTRUSTED_NODE_MARKER" /bin/bash -c '
   . "$1/scripts/common-macos.sh"
+  TRUSTED_BUNDLE="$2"
+  TRUSTED_EXE="$3"
+  TRUSTED_NODE="$4"
+  DISCOVER_CALLS=0
+  SIGNED_NODE_CALLS=0
+  discover_codex_app() {
+    DISCOVER_CALLS=$((DISCOVER_CALLS + 1))
+    CODEX_BUNDLE="$TRUSTED_BUNDLE"
+    CODEX_EXE="$TRUSTED_EXE"
+    CODEX_VERSION="trusted"
+  }
+  require_signed_node_runtime() {
+    SIGNED_NODE_CALLS=$((SIGNED_NODE_CALLS + 1))
+    NODE="$TRUSTED_NODE"
+    NODE_VERSION="v22.0.0"
+    CODEX_TEAM_ID="2DC432GLL2"
+    remember_validated_runtime_identity
+  }
+  state_field codexVersion >/dev/null
   ensure_node_runtime
-  [ "$CODEX_BUNDLE" = "$2" ]
-  [ "$CODEX_EXE" = "$3" ]
-  [ "$CODEX_VERSION" = "$4" ]
-  [ "$CODEX_TEAM_ID" = "$5" ]
-' _ "$ROOT" "$EXPECTED_BUNDLE" "$EXPECTED_EXE" "$EXPECTED_VERSION" "$EXPECTED_TEAM_ID"
+  ensure_node_runtime
+  [ "$DISCOVER_CALLS" -eq 1 ]
+  [ "$SIGNED_NODE_CALLS" -eq 1 ]
+  [ "$NODE" = "$TRUSTED_NODE" ]
+  [ "$CODEX_BUNDLE" = "$TRUSTED_BUNDLE" ]
+  [ "$CODEX_EXE" = "$TRUSTED_EXE" ]
+  [ "$CODEX_TEAM_ID" = "2DC432GLL2" ]
+' _ "$ROOT" "/trusted/ChatGPT.app" "/trusted/ChatGPT.app/Contents/MacOS/ChatGPT" "$NODE"
+[ ! -e "$UNTRUSTED_NODE_MARKER" ] || {
+  printf 'state_field executed an inherited, unvalidated Node runtime.\n' >&2
+  exit 1
+}
 [ ! -e "$STATE_EVAL_MARKER" ] || {
   printf 'Runtime state values were evaluated as shell code.\n' >&2
   exit 1
 }
 
+# A command-line prefix is insufficient: the process text executable must match.
+/usr/bin/env HOME="$RUNTIME_HOME" /bin/bash -c '
+  . "$1/scripts/common-macos.sh"
+  CODEX_EXE="/bin/bash"
+  pid_is_codex_executable "$$"
+  pid_is_codex_descendant "$$"
+  process_executable_path() { printf "/bin/zsh\n"; }
+  if pid_is_codex_executable "$$" || pid_is_codex_descendant "$$"; then exit 1; fi
+' _ "$ROOT"
+
+run_signed_runtime_state_tests() {
 # A reused live PID must never be killed or treated as a successfully stopped
 # injector when its command identity does not match the recorded watcher.
 STOP_HOME="$TMP/stop-home"
 STOP_STATE_ROOT="$STOP_HOME/Library/Application Support/CodexDreamSkinStudio"
 /bin/mkdir -p "$STOP_STATE_ROOT"
-"$NODE" -e 'process.on("SIGTERM", () => process.exit(0)); setTimeout(() => {}, 30000);' &
+"$NODE" -e 'process.on("SIGTERM", () => process.exit(0)); setTimeout(() => {}, 600000);' &
 DUMMY_PID="$!"
 "$NODE" -e '
   const fs = require("node:fs");
@@ -313,7 +669,7 @@ DUMMY_PID=""
 STATUS_HOME="$TMP/status-home"
 STATUS_STATE_ROOT="$STATUS_HOME/Library/Application Support/CodexDreamSkinStudio"
 /bin/mkdir -p "$STATUS_STATE_ROOT"
-"$NODE" -e 'process.on("SIGTERM", () => process.exit(0)); setTimeout(() => {}, 30000);' &
+"$NODE" -e 'process.on("SIGTERM", () => process.exit(0)); setTimeout(() => {}, 600000);' &
 STATUS_PID="$!"
 "$NODE" -e '
   const fs = require("node:fs");
@@ -341,7 +697,7 @@ STATUS_PID=""
 # real bundled Node process so command/path/start checks pass and only the
 # token boundary distinguishes this case.
 STATUS_FAKE_INJECTOR="$TMP/status-fake-injector.mjs"
-/usr/bin/printf 'setTimeout(() => {}, 30000);\n' > "$STATUS_FAKE_INJECTOR"
+/usr/bin/printf 'setTimeout(() => {}, 600000);\n' > "$STATUS_FAKE_INJECTOR"
 "$NODE" "$STATUS_FAKE_INJECTOR" --watch --port 93410 --theme-dir "$TMP" &
 STATUS_PID="$!"
 /bin/sleep 0.08
@@ -368,15 +724,19 @@ STATUS_JSON="$(/usr/bin/env HOME="$STATUS_HOME" "$ROOT/scripts/status-dream-skin
 wait "$STATUS_PID" 2>/dev/null || true
 STATUS_PID=""
 
-# The common stop path must reject a real watcher running on 19341 when the
-# saved state claims 1934, even though nodePath/injectorPath/start-time all
-# match. This exercises the signal gate directly (status has its own matcher).
-"$NODE" "$ROOT/scripts/injector.mjs" --watch --port 19341 --theme-dir "$ROOT/presets/preset-midnight-aurora" \
+# The common stop path must reject a watcher on 19341 when state claims 1934.
+# Use the inert fixture: a real injector could reach a working client on that
+# loopback port even with an isolated HOME.
+"$NODE" "$STATUS_FAKE_INJECTOR" --watch --port 19341 --theme-dir "$TMP" \
   >"$TMP/near-prefix-injector.out" 2>&1 &
 WATCH_PID="$!"
 /bin/sleep 0.2
 WATCH_START="$(/bin/ps -p "$WATCH_PID" -o lstart= 2>/dev/null | /usr/bin/awk '{$1=$1; print}')"
 [ -n "$WATCH_START" ] || { printf 'Could not record near-prefix watcher start time.\n' >&2; exit 1; }
+/usr/bin/env HOME="$STOP_HOME" NODE="$NODE" /bin/bash -c '
+  . "$1/scripts/common-macos.sh"
+  recorded_injector_process_matches "$2" "$3" "$NODE" "$4" 19341
+' _ "$ROOT" "$WATCH_PID" "$WATCH_START" "$STATUS_FAKE_INJECTOR"
 "$NODE" -e '
   const fs = require("node:fs");
   const [file, pid, node, injector, startedAt] = process.argv.slice(1);
@@ -389,9 +749,11 @@ WATCH_START="$(/bin/ps -p "$WATCH_PID" -o lstart= 2>/dev/null | /usr/bin/awk '{$
     injectorPath: injector,
     nodePath: node,
   })}\n`);
-' "$STOP_STATE_ROOT/state.json" "$WATCH_PID" "$NODE" "$ROOT/scripts/injector.mjs" "$WATCH_START"
+' "$STOP_STATE_ROOT/state.json" "$WATCH_PID" "$NODE" "$STATUS_FAKE_INJECTOR" "$WATCH_START"
 if /usr/bin/env HOME="$STOP_HOME" NODE="$NODE" /bin/bash -c '
   . "$1/scripts/common-macos.sh"
+  # This fixture tests PID identity, not discovery of the installed signed app.
+  ensure_node_runtime() { [ -x "$NODE" ]; }
   INJECTOR_JOB_LABEL="$2"
   stop_recorded_injector 2>/dev/null
 ' _ "$ROOT" "$TEST_INJECTOR_JOB_LABEL"; then
@@ -423,6 +785,45 @@ if /usr/bin/grep -F -q 'index($0, "--port " port)' "$ROOT/scripts/common-macos.s
   printf 'injector discovery still accepts a near-prefix port.\n' >&2
   exit 1
 fi
+APPLY_SCRIPT="$ROOT/scripts/apply-from-menubar-macos.sh"
+/usr/bin/grep -F -q 'if hot_reapply_theme "$PORT" 8000; then' "$APPLY_SCRIPT"
+/usr/bin/grep -F -q 'SESSION="off"' "$APPLY_SCRIPT"
+/usr/bin/grep -F -q 'if ! confirm "$PROMPT" "$OK_LABEL"; then' "$APPLY_SCRIPT"
+/usr/bin/grep -F -q '"$SCRIPT_DIR/start-dream-skin-macos.sh" --prompt-restart' "$APPLY_SCRIPT"
+if /usr/bin/grep -F -q 'CODEX_RUNNING=' "$APPLY_SCRIPT" ||
+   /usr/bin/grep -F -q 'MENU_ACTION=' "$APPLY_SCRIPT" ||
+   /usr/bin/grep -F -q 'OPEN_PROMPT=' "$APPLY_SCRIPT"; then
+  printf 'menu apply must preserve the original session-driven prompt model.\n' >&2
+  exit 1
+fi
+HOT_LINE="$(/usr/bin/grep -n 'hot_reapply_theme "$PORT" 8000' "$APPLY_SCRIPT" | /usr/bin/head -1 | /usr/bin/cut -d: -f1)"
+CONFIRM_LINE="$(/usr/bin/grep -n 'if ! confirm "$PROMPT" "$OK_LABEL"; then' "$APPLY_SCRIPT" | /usr/bin/head -1 | /usr/bin/cut -d: -f1)"
+START_LINE="$(/usr/bin/grep -n 'start-dream-skin-macos.sh" --prompt-restart' "$APPLY_SCRIPT" | /usr/bin/head -1 | /usr/bin/cut -d: -f1)"
+if [ -z "$HOT_LINE" ] || [ -z "$CONFIRM_LINE" ] || [ -z "$START_LINE" ] ||
+   [ "$CONFIRM_LINE" -ge "$HOT_LINE" ] ||
+   [ "$HOT_LINE" -ge "$START_LINE" ]; then
+  printf 'menu apply must keep its confirmation and hot-reapply before falling back to start.\n' >&2
+  exit 1
+fi
+MENU_SOURCE="$ROOT/menubar-app/Sources/CodexDreamSkinMenuBar/AppDelegate.swift"
+OPEN_CODEX_BODY="$(/usr/bin/sed -n '/@objc private func openCodex()/,/@objc private func openDreamSkinWebsite()/p' "$MENU_SOURCE")"
+/usr/bin/grep -F -q 'addActionItem(copy.text(.openChatGPT), action: #selector(openCodex), enabled: !busy)' "$MENU_SOURCE"
+/usr/bin/grep -F -q 'showError(title: copy.text(.notFoundTitle), message: copy.text(.notFoundMessage))' "$MENU_SOURCE"
+/usr/bin/grep -F -q 'addLanguageMenu()' "$MENU_SOURCE"
+/usr/bin/grep -F -q 'DreamSkinLanguage.defaultsKey' "$MENU_SOURCE"
+/usr/bin/grep -F -q 'environment["DREAMSKIN_LANG"] = DreamSkinLanguage.stored().environmentValue' \
+  "$ROOT/menubar-app/Sources/CodexDreamSkinMenuBar/ScriptRunner.swift"
+/usr/bin/grep -F -q 'guard !engineNeedsInstall(),' "$MENU_SOURCE"
+/usr/bin/grep -F -q 'let script = installedScript(named: "start-dream-skin-macos.sh") else {' "$MENU_SOURCE"
+/usr/bin/grep -F -q 'NSWorkspace.shared.openApplication(at: appURL, configuration: configuration)' "$MENU_SOURCE"
+/usr/bin/grep -F -q 'ScriptRunner.run(script: script)' "$MENU_SOURCE"
+/usr/bin/grep -F -q 'title: self.copy.text(.openFailedTitle),' "$MENU_SOURCE"
+if /usr/bin/grep -F -q 'applyTitle = "打开并应用皮肤"' "$MENU_SOURCE" ||
+   /usr/bin/grep -F -q 'runInstalledScript(named: "apply-from-menubar-macos.sh", operation: "打开 ChatGPT")' "$MENU_SOURCE" ||
+   /usr/bin/printf '%s\n' "$OPEN_CODEX_BODY" | /usr/bin/grep -F -q 'installBundledEngineIfNeeded(force:'; then
+  printf 'Open ChatGPT must keep its menu title and must not use menu apply or install the engine implicitly.\n' >&2
+  exit 1
+fi
 
 # Corrupt or structurally incomplete state must be preserved and fail closed;
 # otherwise pause/restore could overwrite evidence while a watcher survives.
@@ -436,6 +837,15 @@ for state_payload in '{' '{}'; do
   ' _ "$ROOT" "$TEST_INJECTOR_JOB_LABEL"
   /usr/bin/cmp -s "$STOP_STATE_ROOT/state.json" "$STOP_STATE_ROOT/state.original"
 done
+}
+
+if [ "${CODEX_DREAM_SKIN_SKIP_SIGNED_RUNTIME_TESTS:-0}" = "1" ]; then
+  printf 'SKIP: runtime-state integration requires an installed, signed Codex app.\n'
+  RUNTIME_STATE_RESULT="skipped"
+else
+  run_signed_runtime_state_tests
+  RUNTIME_STATE_RESULT="passed"
+fi
 
 /bin/mkdir -p "$TMP/theme"
 /bin/cp "$ROOT/assets/portal-hero.png" "$TMP/theme/background.png"
@@ -754,12 +1164,6 @@ MULTILINE_CONFIG="$TMP/config-multiline.toml"
 assert_theme_config_install_rejected multiline "$MULTILINE_CONFIG" \
   "$TMP/config-multiline-backup.json"
 
-MULTILINE_ARRAY_CONFIG="$TMP/config-multiline-array.toml"
-/usr/bin/printf '%s\n' '[desktop]' 'rows = [' '  ["one", "two"],' ']' \
-  'appearanceTheme = "system"' > "$MULTILINE_ARRAY_CONFIG"
-assert_theme_config_install_rejected multiline-array "$MULTILINE_ARRAY_CONFIG" \
-  "$TMP/config-multiline-array-backup.json"
-
 CRLF_CONFIG="$TMP/config-crlf.toml"
 CRLF_BACKUP="$TMP/config-crlf-backup.json"
 /usr/bin/printf '\357\273\277model = "gpt-5"\r\nproject = "中文项目"\r\n\r\n[desktop]\r\nappearanceTheme = "system"\r\n' \
@@ -769,7 +1173,14 @@ CRLF_BACKUP="$TMP/config-crlf-backup.json"
 "$NODE" "$ROOT/scripts/theme-config.mjs" restore "$CRLF_CONFIG" "$CRLF_BACKUP" >/dev/null
 /usr/bin/cmp -s "$CRLF_CONFIG" "$TMP/original-crlf.toml"
 
-/usr/bin/env -u HOME /bin/bash -c '. "$1/scripts/common-macos.sh"; [ -n "$HOME" ] && [ "$SKIN_VERSION" = "1.2.0" ]' _ "$ROOT"
-"$ROOT/scripts/doctor-macos.sh" >/dev/null
+/usr/bin/env -u HOME /bin/bash -c '. "$1/scripts/common-macos.sh"; [ -n "$HOME" ] && [ "$SKIN_VERSION" = "1.5.18" ]' _ "$ROOT"
+if [ "${CODEX_DREAM_SKIN_SKIP_DOCTOR:-0}" = "1" ]; then
+  printf 'SKIP: Doctor requires an installed, signed Codex app.\n'
+  DOCTOR_RESULT="skipped"
+else
+  "$ROOT/scripts/doctor-macos.sh" >/dev/null
+  DOCTOR_RESULT="passed"
+fi
 
-printf 'PASS: syntax, payload, bundled presets, preset seeding, runtime-state safety, custom-theme, config round-trips, HOME recovery, signature, and doctor checks.\n'
+printf 'PASS: syntax, CJK-adjacent shell expansions, nested :has() CSS, payload, bundled presets, preset seeding, runtime-state safety, custom-theme, config round-trips, HOME recovery, signature, switch-theme signed runtime %s, runtime-state integration %s, and Doctor %s.\n' \
+  "$SWITCH_RUNTIME_RESULT" "$RUNTIME_STATE_RESULT" "$DOCTOR_RESULT"

@@ -12,13 +12,12 @@
 
 | 你要做的事 | 应看的文件 | 说明 |
 |---|---|---|
-| 直接切换当前置顶主题 | `macos/presets/preset-romantic-rose/theme.json` + `background.jpg`；Windows 对应 `windows/assets/theme.json` + `dream-reference.jpg` | 两端都播种「桥本有菜」；不是 `docs/images/presets/*-light/dark` 截图 |
-| 直接切换抽象主题 | `macos/presets/preset-{midnight-aurora,sakura-dawn,amber-dusk,forest-mist,cyber-neon}/` | 每个目录都应同时有 `theme.json` 和 `background.jpg` |
+| 在获权的源码 checkout 中切换参考主题 | `macos/presets/preset-arina-hashimoto/theme.json` + `background.jpg`；源码 Windows 对应 `windows/assets/theme.json` + `dream-reference.jpg` | 仅限本地权利核验后的源码使用；公开 DMG/Setup.exe 只播种 Gothic Void Crusade，不是 `docs/images/presets/*-light/dark` 截图 |
 | 重新生成一张纯背景 | 本文件的通用模板或 [`reference-background-prompt-guide.md`](./reference-background-prompt-guide.md) | 输出应是独立的 `2560 × 1440`、16:9 图片，不是截图 |
 | 只看效果或找风格 | `docs/images/gallery/skin-01.jpg` ～ `skin-08.jpg` | 带 UI 的概念效果图，不能改名为 `background.jpg` 后导入 |
-| 查看当前主题在浅/暗色下的实机结果 | `docs/images/presets/romantic-rose-light.jpg`、`romantic-rose-dark.jpg` | 仅预览，包含真实控件，不能作为背景素材 |
+| 查看当前主题在浅/暗色下的实机结果 | `docs/images/presets/arina-hashimoto-light.jpg`、`arina-hashimoto-dark.jpg` | 仅预览，包含真实控件，不能作为背景素材 |
 
-特别注意：`skin-01` 的粉色玫瑰方向与 `preset-romantic-rose` 有相近气质，但**不是同一文件、同一尺寸或同一资产**。`skin-01`～`skin-08` 只提供灵感；实际预设以 `macos/presets/preset-*` 目录中的 `theme.json` + `background.jpg` 为准。任何 `banner-*.png` / `generated-*.png` 实验图也不自动获得预设或发行资格；真人肖像和模型输出必须先完成权利核验。
+特别注意：`skin-01` 的粉色玫瑰方向与 `preset-arina-hashimoto` 有相近气质，但**不是同一文件、同一尺寸或同一资产**。`skin-01`～`skin-08` 只提供灵感；实际预设以 `macos/presets/preset-*` 目录中的 `theme.json` + `background.jpg` 为准。任何 `banner-*.png` / `generated-*.png` 实验图也不自动获得预设或发行资格；真人肖像和模型输出必须先完成权利核验。
 
 另外，`docs/images/hero-banner-red-white.png` 与 `macos/assets/portal-hero.png` 是旧的 3:1 首页横幅资源，不是这份文档推荐的 16:9 通用背景母版。
 
@@ -29,7 +28,7 @@
 - 母版画布：推荐 `2560 × 1440`（16:9）。提示词不能替代生成器尺寸设置，必须在生成器界面或 API 中同时选择该尺寸；导入脚本可能按需缩到最长边 2400。
 - 首页专用导出：只在明确不用于任务页时，另裁一份 `3072 × 1024`（3:1）横幅。不要把 3:1 当作通用母版，也不要把带 UI 的效果截图反推成背景。
 - 质量：高；写实人物建议使用最高人物细节档。
-- 格式：PNG 母版；导入主题前转换为高质量 JPEG，最终文件不超过 16 MB。
+- 格式：PNG 母版；导入主题前转换为高质量 JPEG，最终文件不超过 10 MB。
 - 构图：左侧 `x=0%～52%` 为低信息安全区；主视觉中心放在 `x=68%～76%`，脸、手和识别性道具控制在 `x=62%～88%`，非关键装饰最多延伸到 `x=90%`；任何关键内容距四边至少 8%。
 - 垂直安全：脸部/核心物体建议落在 `y=20%～52%`，手和次要主体落在 `y=30%～70%`，全部关键内容控制在 `y=16%～72%`；顶部与底部只放能自然延展的环境，避免超宽窗口裁切或底部输入框遮挡后断头、断手。
 - 浅/暗兼容：安全区要有连续、低频、低对比的明暗变化，避免纯白烧穿或纯黑死区；同一张图在浅色壳上能承载深色文字，在暗色壳叠加遮罩后仍保留层次。
@@ -345,9 +344,9 @@ UI, UX, app interface, software window, desktop screenshot, mockup, title bar, m
 
 ## 当前仓库已有的纯背景
 
-- 用户提供的「桥本有菜」byte-identical 源图：`docs/images/presets/romantic-rose-source.png`（`1672 × 941` PNG）
-- macOS 实测精选可切换背景：`macos/presets/preset-romantic-rose/background.jpg`（由上述源 PNG 派生为 `2560 × 1440` JPEG；标准化尺寸不代表增加源图细节）
-- 对应浅/暗真实截图：`docs/images/presets/romantic-rose-light.jpg`、`romantic-rose-dark.jpg`（仅预览，禁止当背景导入）
+- 用户提供的「桥本有菜」byte-identical 源图：`docs/images/presets/arina-hashimoto-source.png`（`1672 × 941` PNG）
+- macOS 实测精选可切换背景：`macos/presets/preset-arina-hashimoto/background.jpg`（由上述源 PNG 派生为 `2560 × 1440` JPEG；标准化尺寸不代表增加源图细节）
+- 对应浅/暗真实截图：`docs/images/presets/arina-hashimoto-light.jpg`、`arina-hashimoto-dark.jpg`（仅预览，禁止当背景导入）
 - 红白未来城市纯背景：`docs/images/hero-banner-red-white.png`（`2168 × 725`、约 3:1，仅适合首页横幅）
 - 红白未来城市运行时副本：`macos/assets/portal-hero.png`（同为 3:1，不是通用 16:9 母版）
 

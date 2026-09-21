@@ -13,22 +13,7 @@ $ErrorActionPreference = 'Stop'
 $PortExplicit = $PSBoundParameters.ContainsKey('Port')
 . (Join-Path $PSScriptRoot 'common-windows.ps1')
 . (Join-Path $PSScriptRoot 'theme-windows.ps1')
-
-function Stop-DreamSkinTrayProcess {
-  $trayScript = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'tray-dream-skin.ps1'))
-  try {
-    $processes = Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe' OR Name = 'pwsh.exe'" `
-      -ErrorAction Stop
-    foreach ($process in $processes) {
-      if ($process.ProcessId -eq $PID -or -not $process.CommandLine) { continue }
-      if ($process.CommandLine.IndexOf($trayScript, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
-        Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop
-      }
-    }
-  } catch {
-    Write-Warning "Could not close the Dream Skin tray automatically: $($_.Exception.Message)"
-  }
-}
+. (Join-Path $PSScriptRoot 'localization-windows.ps1')
 
 $operationLock = Enter-DreamSkinOperationLock
 try {
@@ -38,6 +23,7 @@ try {
   Assert-DreamSkinPort -Port $Port
 
   $StateRoot = Join-Path $env:LOCALAPPDATA 'CodexDreamSkin'
+  $language = Resolve-DreamSkinLanguage -StateRoot $StateRoot
   $themePaths = Get-DreamSkinThemePaths -StateRoot $StateRoot
   Ensure-DreamSkinManagedDirectory -Path $themePaths.Root -Root $themePaths.Root
   $StatePath = Join-Path $StateRoot 'state.json'
@@ -93,13 +79,13 @@ try {
   $forceAuthorized = [bool]$ForceRestart
   if ($shouldCloseCodex -and $PromptRestart) {
     $restartMessage = if ($NoRelaunch) {
-      '恢复将关闭 Codex，并移除动态壁纸及其 CDP 会话。是否继续？'
+      Get-DreamSkinText -Key 'RestoreCloseNoRelaunch' -Language $language
     } else {
-      '恢复将关闭 Codex，移除动态壁纸及其 CDP 会话，然后重新打开官方应用。是否继续？'
+      Get-DreamSkinText -Key 'RestoreClose' -Language $language
     }
     $forceAuthorized = Confirm-DreamSkinRestart -Message $restartMessage
     if (-not $forceAuthorized) {
-      Write-Host 'Restore was cancelled; no state or configuration was changed.'
+      Write-Host (Get-DreamSkinText -Key 'RestoreCancelled' -Language $language)
       exit 0
     }
   }

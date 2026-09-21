@@ -42,7 +42,8 @@ try {
   $null = Initialize-DreamSkinThemeStore -SkillRoot $engine.Root -StateRoot $StateRoot
   $ConfigPath = Join-Path $HOME '.codex\config.toml'
   $BackupPath = Join-Path $StateRoot 'config.before-dream-skin.toml'
-  Install-DreamSkinBaseTheme -ConfigPath $ConfigPath -BackupPath $BackupPath
+  Install-DreamSkinBaseTheme -ConfigPath $ConfigPath -BackupPath $BackupPath `
+    -AppearanceTheme (Get-DreamSkinActiveThemeAppearance -ThemeDirectory $themePaths.Active)
 
   if (-not $NoShortcuts) {
     $shell = New-Object -ComObject WScript.Shell
@@ -57,7 +58,7 @@ try {
     foreach ($folder in @($desktop, $startMenu)) {
       $shortcut = $shell.CreateShortcut((Join-Path $folder 'Codex 动态壁纸.lnk'))
       $shortcut.TargetPath = $powershell
-      $shortcut.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$startScript`"$portArgument -PromptRestart"
+      $shortcut.Arguments = "-NoProfile -ExecutionPolicy RemoteSigned -File `"$startScript`"$portArgument -PromptRestart"
       $shortcut.WorkingDirectory = $engine.Root
       $shortcut.Description = '启动 Codex 并应用动态壁纸'
       $shortcut.Save()
@@ -65,7 +66,7 @@ try {
 
     $restore = $shell.CreateShortcut((Join-Path $desktop 'Codex 动态壁纸 - 恢复官方外观.lnk'))
     $restore.TargetPath = $powershell
-    $restore.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$restoreScript`"$portArgument -RestoreBaseTheme -PromptRestart"
+    $restore.Arguments = "-NoProfile -ExecutionPolicy RemoteSigned -File `"$restoreScript`"$portArgument -RestoreBaseTheme -PromptRestart"
     $restore.WorkingDirectory = $engine.Root
     $restore.Description = 'Restore the official Codex appearance and close the CDP session'
     $restore.Save()
@@ -73,13 +74,13 @@ try {
     foreach ($folder in @($desktop, $startMenu)) {
       $tray = $shell.CreateShortcut((Join-Path $folder 'Codex 动态壁纸 - 托盘控制.lnk'))
       $tray.TargetPath = $powershell
-      $tray.Arguments = "-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$trayScript`"$portArgument"
+      $tray.Arguments = "-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy RemoteSigned -File `"$trayScript`"$portArgument"
       $tray.WorkingDirectory = $engine.Root
       $tray.Description = '打开 Codex 动态壁纸托盘控制'
       $tray.Save()
     }
     Start-Process -FilePath $powershell -ArgumentList `
-      "-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$trayScript`"$portArgument" `
+      "-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy RemoteSigned -File `"$trayScript`"$portArgument" `
       -WindowStyle Hidden | Out-Null
   }
 
