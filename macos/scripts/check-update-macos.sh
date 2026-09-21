@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 . "$ROOT/scripts/localization-macos.sh"
 VERSION_PATH="$ROOT/VERSION"
-REPOSITORY="Fei-Away/Codex-Dream-Skin"
+REPOSITORY="CCDawn/Codex-Dynamic-Skin"
 RELEASE_URL="https://github.com/$REPOSITORY/releases/latest"
 JSON="false"
 INTERACTIVE="false"

@@ -100,20 +100,20 @@ UPDATE_JSON="$({
 })"
 "$NODE" -e '
   const value = JSON.parse(process.argv[1]);
-  if (value.currentVersion !== "v1.5.18" || value.latestVersion !== "v9.8.7") process.exit(1);
+  if (value.currentVersion !== process.argv[2] || value.latestVersion !== "v9.8.7") process.exit(1);
   if (!value.updateAvailable) process.exit(1);
-  if (value.releaseUrl !== "https://github.com/Fei-Away/Codex-Dream-Skin/releases/latest") process.exit(1);
-' "$UPDATE_JSON"
+  if (value.releaseUrl !== "https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest") process.exit(1);
+' "$UPDATE_JSON" "$(/usr/bin/tr -d '[:space:]' < "$ROOT/VERSION")"
 UPDATE_REDIRECT_JSON="$({
   CODEX_DREAM_SKIN_TEST_REDIRECT_HEADERS_FILE="$ROOT/tests/fixtures/latest-release.headers" \
     "$ROOT/scripts/check-update-macos.sh" --json
 })"
 "$NODE" -e '
   const value = JSON.parse(process.argv[1]);
-  if (value.currentVersion !== "v1.5.18" || value.latestVersion !== "v9.8.7") process.exit(1);
+  if (value.currentVersion !== process.argv[2] || value.latestVersion !== "v9.8.7") process.exit(1);
   if (!value.updateAvailable) process.exit(1);
-  if (value.releaseUrl !== "https://github.com/Fei-Away/Codex-Dream-Skin/releases/latest") process.exit(1);
-' "$UPDATE_REDIRECT_JSON"
+  if (value.releaseUrl !== "https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest") process.exit(1);
+' "$UPDATE_REDIRECT_JSON" "$(/usr/bin/tr -d '[:space:]' < "$ROOT/VERSION")"
 "$NODE" --test "$ROOT/tests/update-fallback.test.mjs"
 if /usr/bin/grep -R -n -E --exclude-dir='.build' \
   --exclude-dir='.build-*' \
@@ -1173,7 +1173,7 @@ CRLF_BACKUP="$TMP/config-crlf-backup.json"
 "$NODE" "$ROOT/scripts/theme-config.mjs" restore "$CRLF_CONFIG" "$CRLF_BACKUP" >/dev/null
 /usr/bin/cmp -s "$CRLF_CONFIG" "$TMP/original-crlf.toml"
 
-/usr/bin/env -u HOME /bin/bash -c '. "$1/scripts/common-macos.sh"; [ -n "$HOME" ] && [ "$SKIN_VERSION" = "1.5.18" ]' _ "$ROOT"
+/usr/bin/env -u HOME /bin/bash -c '. "$1/scripts/common-macos.sh"; [ -n "$HOME" ] && [ "$SKIN_VERSION" = "$2" ]' _ "$ROOT" "$(/usr/bin/tr -d '[:space:]' < "$ROOT/VERSION")"
 if [ "${CODEX_DREAM_SKIN_SKIP_DOCTOR:-0}" = "1" ]; then
   printf 'SKIP: Doctor requires an installed, signed Codex app.\n'
   DOCTOR_RESULT="skipped"

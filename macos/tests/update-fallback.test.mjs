@@ -7,8 +7,8 @@ import test from "node:test";
 
 const scripts = new URL("../scripts/", import.meta.url);
 const quote = (value) => `'${value.replaceAll("'", "'\\''")}'`;
-const releaseUrl = "https://github.com/Fei-Away/Codex-Dream-Skin/releases/latest";
-const tagUrl = "https://github.com/Fei-Away/Codex-Dream-Skin/releases/tag/v9.8.7";
+const releaseUrl = "https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest";
+const tagUrl = "https://github.com/CCDawn/Codex-Dynamic-Skin/releases/tag/v9.8.7";
 
 const nativeStub = `
 import fs from "node:fs";
@@ -59,7 +59,7 @@ async function check(t, headers, mode = "api-failed") {
   });
   assert.ifError(result.error);
   const calls = (await fs.readFile(callsPath, "utf8")).trim().split("\n").filter(Boolean).map(JSON.parse);
-  assert.equal(calls[0].url, "https://api.github.com/repos/Fei-Away/Codex-Dream-Skin/releases/latest");
+  assert.equal(calls[0].url, "https://api.github.com/repos/CCDawn/Codex-Dynamic-Skin/releases/latest");
   if (mode !== "api-success") {
     assert.equal(calls.length, 2);
     assert.equal(calls[1].url, releaseUrl);
