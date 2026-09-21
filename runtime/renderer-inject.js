@@ -435,7 +435,11 @@
     const focusY = typeof ART.focusY === "number" ? ART.focusY : profile?.focusY ?? 0.5;
     const taskMode = ART.taskMode && ART.taskMode !== "auto"
       ? ART.taskMode : profile?.taskMode || "ambient";
-    const wide = profile?.wide || profile?.aspect === "wide" || profile?.aspect === "ultrawide";
+    // Video wallpapers cover the full window like a wide artwork. Without
+    // this, the shell keeps its opaque --ds-bg and the fixed video layer is
+    // only visible around the content surfaces, never through them.
+    const videoActive = videoConfig.mediaType === "video";
+    const wide = videoActive || profile?.wide || profile?.aspect === "wide" || profile?.aspect === "ultrawide";
     const aspect = profile?.aspect || "unknown";
     const focusXValue = `${(clamp(focusX, 0, 1) * 100).toFixed(2)}%`;
     const focusYValue = `${(clamp(focusY, 0, 1) * 100).toFixed(2)}%`;
