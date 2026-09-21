@@ -129,6 +129,8 @@
   };
   const videoConfig = {
     mediaType: rawMedia.type === "video" ? "video" : "image",
+    transport: rawMedia.transport === "poster" ? "poster" : "video",
+    posterTime: numberIn(rawMedia.posterTime, 0, 7200, 2),
     mediaMime: typeof rawMedia.mime === "string" ? rawMedia.mime : null,
     mediaSize: Number.isSafeInteger(rawMedia.size) ? rawMedia.size : -1,
     playbackRate: numberIn(rawMedia.playbackRate, 0.25, 2, 1),
@@ -137,6 +139,8 @@
     wallpaperReveal: numberIn(rawMedia.opacity, 0, 1, 1),
   };
   let mediaUrl = null;
+  let posterArtUrl = null;
+  let posterCaptureStarted = false;
   let mediaTransfer = null;
   let streamController = null;
 
@@ -660,7 +664,10 @@
     setAttribute(root, SHELL_ATTR, shell);
     // Video themes paint through #codex-dream-skin-media instead of the CSS art
     // layer; "none" keeps the upstream veil gradients translucent over it.
-    setStyleProperty(root, "--dream-skin-art", artUrl ? `url("${artUrl}")` : "none");
+    // Poster transport swaps in one captured frame as static art once the
+    // video element has been reclaimed.
+    const effectiveArtUrl = posterArtUrl || artUrl;
+    setStyleProperty(root, "--dream-skin-art", effectiveArtUrl ? `url("${effectiveArtUrl}")` : "none");
     applyTheme(root, shell);
     applyArtMetadata(root);
     syncMediaElement();
@@ -695,11 +702,99 @@
     return numeric;
   };
 
+  // Poster transport (remote desktop sessions): decode exactly one frame out
+  // of the transferred video, paint it as static CSS art, then drop the video
+  // element and revoke the blob so nothing keeps decoding or compositing.
+  const applyPosterFromMedia = (media) => {
+    if (posterArtUrl || posterCaptureStarted ||
+        videoConfig.transport !== "poster" || !media) return false;
+    posterCaptureStarted = true;
+    const duration = Number(media.duration);
+    const targetTime = Number.isFinite(duration) && duration > 0
+      ? Math.min(videoConfig.posterTime, Math.max(0, duration - 0.05))
+      : videoConfig.posterTime;
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      try {
+        if (!media.isConnected || media.readyState < 2) throw new Error("poster frame unavailable");
+        const canvas = document.createElement("canvas");
+        canvas.width = media.videoWidth || 1920;
+        canvas.height = media.videoHeight || 1080;
+        canvas.getContext("2d").drawImage(media, 0, 0, canvas.width, canvas.height);
+        posterArtUrl = canvas.toDataURL("image/jpeg", 0.86);
+      } catch {
+        // Capture failed (codec or canvas limits): keep the video playing
+        // instead of leaving the session without a wallpaper.
+        videoConfig.transport = "video";
+        syncMediaElement();
+        return;
+      }
+      const state = window[STATE_KEY];
+      if (state?.installToken === installToken) state.posterArtUrl = posterArtUrl;
+      media.pause?.();
+      media.removeAttribute?.("src");
+      media.load?.();
+      if (mediaUrl) URL.revokeObjectURL(mediaUrl);
+      mediaUrl = null;
+      if (state?.installToken === installToken) state.mediaUrl = null;
+      document.getElementById(MEDIA_ID)?.remove();
+      applyRootState(document.documentElement);
+    };
+    const seek = () => {
+      if (settled) return;
+      try {
+        media.currentTime = targetTime;
+      } catch {
+        finish();
+        return;
+      }
+      if (media.readyState >= 2 && Math.abs(media.currentTime - targetTime) < 0.01) finish();
+    };
+    media.addEventListener?.("seeked", finish, { once: true });
+    if (media.readyState >= 1) seek();
+    else media.addEventListener?.("loadeddata", seek, { once: true });
+    // A hidden or throttled surface may never fire seeked; fall through to
+    // the video fallback rather than waiting forever.
+    setTimeout(() => finish(), 6000);
+    return true;
+  };
+
   const syncMediaElement = () => {
     let media = document.getElementById(MEDIA_ID);
     if (videoConfig.mediaType !== "video" || !shellElementPresent()) {
       media?.remove();
       return null;
+    }
+    if (videoConfig.transport === "poster") {
+      // Nothing to keep around once the frame is painted.
+      if (posterArtUrl || !mediaUrl) {
+        media?.remove();
+        return null;
+      }
+      if (!media || media.parentElement !== document.body) {
+        media?.remove();
+        media = document.createElement("video");
+        media.id = MEDIA_ID;
+        media.setAttribute("aria-hidden", "true");
+        media.autoplay = false;
+        media.controls = false;
+        media.disablePictureInPicture = true;
+        media.muted = true;
+        media.playsInline = true;
+        media.preload = "auto";
+        document.body.appendChild(media);
+      }
+      if (!media.defaultMuted) media.defaultMuted = true;
+      if (!media.muted) media.muted = true;
+      if (media.src !== mediaUrl) {
+        media.src = mediaUrl;
+        media.load?.();
+      }
+      if (!media.paused) media.pause?.();
+      applyPosterFromMedia(media);
+      return media;
     }
     if (!media || media.parentElement !== document.body) {
       media?.remove();
@@ -873,6 +968,8 @@
     mediaTransfer = { chunks: [], received: 0, expected: size, mime };
     if (mediaUrl) URL.revokeObjectURL(mediaUrl);
     mediaUrl = null;
+    posterArtUrl = null;
+    posterCaptureStarted = false;
     const media = syncMediaElement();
     if (media) {
       media.pause?.();
@@ -1238,6 +1335,7 @@
     navigation: navigationApi,
     navigationHandler,
     artUrl,
+    posterArtUrl,
     installToken,
     styleMode,
     styleNode,
@@ -1253,6 +1351,8 @@
     revision: PAYLOAD_REVISION,
     config: {
       mediaType: videoConfig.mediaType,
+      transport: videoConfig.transport,
+      posterTime: videoConfig.posterTime,
       mediaMime: videoConfig.mediaMime,
       mediaSize: videoConfig.mediaSize,
       playbackRate: videoConfig.playbackRate,

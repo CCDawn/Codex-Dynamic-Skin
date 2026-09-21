@@ -6,7 +6,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   isOpacityOnlyThemeChange,
+  loadPayload,
   setOpacityOnSession,
+  setPosterTransport,
   setStreamCspBypass,
   transferVideoToSession,
 } from "../scripts/injector.mjs";
@@ -19,12 +21,15 @@ const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "codex-dream-skin-vide
 const themeDirectory = path.join(temporary, "theme");
 const videoPath = path.join(themeDirectory, "loop.mp4");
 
-const runInjector = (directory) => new Promise((resolve, reject) => {
+const runInjector = (directory, extraEnv = {}) => new Promise((resolve, reject) => {
   const child = spawn(process.execPath, [
     injectorPath,
     "--check-payload",
     "--theme-dir", directory,
-  ], { stdio: ["ignore", "pipe", "pipe"] });
+  ], {
+    stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, ...extraEnv },
+  });
   let stdout = "";
   let stderr = "";
   child.stdout.setEncoding("utf8");
@@ -82,6 +87,34 @@ try {
   assert.equal(summary.media.opacity, 0.4);
   assert.ok(summary.payloadBytes < videoBytes.length,
     "The CDP bootstrap payload must not embed the complete video.");
+
+  // Remote-session poster transport: CODEX_DREAM_SKIN_POSTER stamps
+  // media.transport into the theme (and therefore the payload + revision) so
+  // the renderer captures one frame instead of decoding continuously.
+  const posterChecked = await runInjector(themeDirectory, { CODEX_DREAM_SKIN_POSTER: "1" });
+  assert.equal(posterChecked.code, 0, posterChecked.stderr);
+  const posterSummary = JSON.parse(posterChecked.stdout);
+  assert.equal(posterSummary.media.transport, "poster");
+  assert.equal(posterSummary.media.type, "video");
+
+  setPosterTransport(true);
+  const posterPayload = await loadPayload(themeDirectory);
+  setPosterTransport(false);
+  const videoPayload = await loadPayload(themeDirectory);
+  assert.equal(posterPayload.theme.media.transport, "poster");
+  assert.equal(videoPayload.theme.media.transport, undefined);
+  assert.ok(posterPayload.payload.includes('\\"transport\\":\\"poster\\"')
+    || posterPayload.payload.includes('"transport":"poster"'));
+  assert.notEqual(posterPayload.revision, videoPayload.revision,
+    "Poster transport must produce a distinct payload revision.");
+
+  const rendererSource = await fs.readFile(
+    path.join(windowsRoot, "assets", "renderer-inject.js"), "utf8");
+  assert.match(rendererSource, /applyPosterFromMedia/,
+    "The bundled renderer must carry the poster capture path.");
+  assert.match(rendererSource, /transport === "poster"/);
+  assert.match(rendererSource, /transport: videoConfig\.transport/,
+    "The renderer state config must expose the active transport.");
 
   const streamThemeDirectory = path.join(temporary, "scene-stream-theme");
   const streamUrl = "http://127.0.0.1:17866/1234567890abcdef1234567890abcdef/stream.mp4";

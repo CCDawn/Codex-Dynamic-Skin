@@ -18,6 +18,13 @@ $Injector = Join-Path $PSScriptRoot 'injector.mjs'
 . (Join-Path $PSScriptRoot 'theme-windows.ps1')
 . (Join-Path $PSScriptRoot 'localization-windows.ps1')
 
+# RDP sessions composite through WARP (software D3D): a full-window video
+# wallpaper there burns CPU in the fake GPU process and floods the remote
+# stream. Flag the injector so video themes degrade to one captured poster
+# frame; console sessions keep full playback.
+if (Test-DreamSkinRemoteSession) { $env:CODEX_DREAM_SKIN_POSTER = '1' }
+else { Remove-Item Env:CODEX_DREAM_SKIN_POSTER -ErrorAction SilentlyContinue }
+
 function Invoke-DreamSkinStartupAppearanceRecovery {
   param(
     [AllowNull()][object]$Transaction,

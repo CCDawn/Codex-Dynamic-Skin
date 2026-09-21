@@ -437,8 +437,31 @@ try {
       Show-DreamSkinTrayError -Message $_.Exception.Message
     }
   })
+  # Session-transport watchdog: RDP <-> console switches do not restart the
+  # tray, but they flip whether continuous video playback is affordable.
+  # Re-apply the current theme when the remote state changes so the
+  # injector re-stamps transport (poster <-> video).
+  $script:lastRemoteSession = Test-DreamSkinRemoteSession
+  if ($script:lastRemoteSession) { $notify.Text = 'Codex 动态壁纸 · 远程静态帧' }
+  $sessionWatch = [System.Windows.Forms.Timer]::new()
+  $sessionWatch.Interval = 60000
+  $sessionWatch.Add_Tick({
+    $currentRemote = Test-DreamSkinRemoteSession
+    if ($currentRemote -eq $script:lastRemoteSession) { return }
+    $script:lastRemoteSession = $currentRemote
+    $transportMessage = if ($currentRemote) {
+      Get-DreamSkinTrayText -Key 'SessionTransportPoster'
+    } else {
+      Get-DreamSkinTrayText -Key 'SessionTransportVideo'
+    }
+    $notify.Text = if ($currentRemote) { 'Codex 动态壁纸 · 远程静态帧' } else { 'Codex 动态壁纸' }
+    $notify.ShowBalloonTip(2200, 'Codex 动态壁纸', $transportMessage, [System.Windows.Forms.ToolTipIcon]::Info)
+    Start-DreamSkinPowerShell -Script $startScript -Arguments @('-Port', "$Port", '-PromptRestart')
+  })
+  $sessionWatch.Start()
   [System.Windows.Forms.Application]::Run()
 } finally {
+  if ($null -ne $sessionWatch) { $sessionWatch.Stop(); $sessionWatch.Dispose() }
   if ($null -ne $notify) { $notify.Dispose() }
   if ($null -ne $trayIcon) { $trayIcon.Dispose() }
   if ($acquired) { try { $mutex.ReleaseMutex() } catch {} }

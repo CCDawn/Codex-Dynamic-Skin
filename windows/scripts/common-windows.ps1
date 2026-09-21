@@ -1410,3 +1410,32 @@ function Invoke-DreamSkinCodexWindowActivation {
   }
   return $false
 }
+
+function Test-DreamSkinRemoteSession {
+  # RDP sessions render through WARP (software D3D) instead of the physical
+  # GPU, so a full-window video wallpaper there costs heavy CPU compositing
+  # and floods the remote stream. WTSIsRemoteSession (class 16) is true
+  # exactly when the calling session is remoted; fall back to SESSIONNAME if
+  # the pinvoke is unavailable.
+  try {
+    if (-not ('DreamSkin.Wts' -as [type])) {
+      Add-Type -Namespace DreamSkin -Name Wts -MemberDefinition @'
+[DllImport("wtsapi32.dll", SetLastError = true)]
+public static extern bool WTSQuerySessionInformation(IntPtr hServer, int sessionId, int infoClass, out IntPtr buffer, out int bytesReturned);
+[DllImport("wtsapi32.dll")]
+public static extern void WTSFreeMemory(IntPtr buffer);
+'@
+    }
+    $buffer = [IntPtr]::Zero
+    $bytes = 0
+    $ok = [DreamSkin.Wts]::WTSQuerySessionInformation([IntPtr]::Zero, -1, 16, [ref]$buffer, [ref]$bytes)
+    if ($ok -and $buffer -ne [IntPtr]::Zero) {
+      try {
+        return ([System.Runtime.InteropServices.Marshal]::ReadInt32($buffer) -ne 0)
+      } finally {
+        [DreamSkin.Wts]::WTSFreeMemory($buffer)
+      }
+    }
+  } catch {}
+  return ($env:SESSIONNAME -like 'RDP*')
+}

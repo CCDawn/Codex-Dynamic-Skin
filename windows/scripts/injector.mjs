@@ -39,7 +39,7 @@ const stableTestidLiteral = (testid) => {
   }
   return JSON.stringify(`[data-testid="${testid}"]`);
 };
-const SKIN_VERSION = "1.6.1";
+const SKIN_VERSION = "1.6.2";
 // .github/workflows/ci.yml's version-consistency check greps this file for a
 // literal `const SKIN_VERSION = "...";` line, so the export stays a separate
 // statement rather than an inline `export const`.
@@ -59,6 +59,16 @@ const OPERATION_UI_HOST_ID = "chatgpt-dream-skin-operation";
 const OPERATION_UI_REGISTRY_KEY = "__CHATGPT_DREAM_SKIN_OPERATION_UI__";
 const OPERATION_KINDS = new Set(["apply", "pause", "switch"]);
 const OPERATION_UI_STATES = new Set(["success", "error", "cancelled"]);
+// Remote desktop sessions composite through WARP (software D3D): a
+// full-window video wallpaper there burns CPU in Chromium's "GPU" process
+// and floods the remote stream. When the start script sets
+// CODEX_DREAM_SKIN_POSTER=1 before spawning us, video themes degrade to a
+// single captured poster frame in the renderer instead of continuous
+// playback. Managed here as module state so tests can drive it directly.
+let posterTransport = process.env.CODEX_DREAM_SKIN_POSTER === "1";
+export function setPosterTransport(enabled) {
+  posterTransport = enabled === true;
+}
 // Shared with macOS: in-renderer progress for pause/apply so both platforms feel the same.
 const OPERATION_UI_CSS = `
   :host {
@@ -905,6 +915,9 @@ export async function loadPayload(themeDir = path.join(root, "assets"), candidat
   // Stable for both image and video themes; loadTheme already folds media bytes
   // (or size+mtime for video) plus Safe CSS into the fingerprint.
   loadedTheme.theme.artKey = loadedTheme.fingerprint.slice(0, 20);
+  if (posterTransport) {
+    loadedTheme.theme.media = { ...(loadedTheme.theme.media || {}), transport: "poster" };
+  }
   const revision = createHash("sha256")
     .update(SKIN_VERSION)
     .update(combinedCss)
@@ -1619,6 +1632,8 @@ export async function verifySession(
         [...node.classList].some((name) => /^(?:dream-|codex-dream-skin(?:-|$))/.test(name))
       ).length,
       mediaType: window.__CODEX_DREAM_SKIN_STATE__?.config?.mediaType ?? 'image',
+      transport: window.__CODEX_DREAM_SKIN_STATE__?.config?.transport ?? 'video',
+      posterReady: Boolean(window.__CODEX_DREAM_SKIN_STATE__?.posterArtUrl),
       mediaStream: Boolean(window.__CODEX_DREAM_SKIN_STATE__?.config?.streamUrl),
       streamStats: window.__CODEX_DREAM_SKIN_STATE__?.streamStats ?? null,
       wallpaperReveal: window.__CODEX_DREAM_SKIN_STATE__?.config?.wallpaperReveal ?? null,
@@ -1697,11 +1712,13 @@ export async function verifySession(
       windowPass && documentPass && viewportPass && structurePass &&
       payloadPass && homePass &&
       (result.mediaType !== 'video' ||
-        (Number.isFinite(result.wallpaperReveal) && result.wallpaperReveal >= 0 &&
+        (result.transport === 'poster'
+          ? result.posterReady
+          : (Number.isFinite(result.wallpaperReveal) && result.wallpaperReveal >= 0 &&
           result.wallpaperReveal <= 1 &&
           result.mediaPresent && result.mediaReady && result.mediaElementOpacity === '1' &&
           (!result.mediaStream ||
-            (result.streamStats?.chunks > 0 && result.streamStats?.bytes > 0))));
+            (result.streamStats?.chunks > 0 && result.streamStats?.bytes > 0)))));
     return result;
   })()`);
 }
