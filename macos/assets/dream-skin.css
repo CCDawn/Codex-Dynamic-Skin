@@ -785,7 +785,7 @@ html[data-dream-skin="active"] [role="main"]:has([data-testid="home-icon"]) [dat
 }
 
 html[data-dream-skin="active"] [role="main"]:has([data-testid="home-icon"]) [data-feature="game-source"]::before {
-  content: var(--dream-skin-name, "Codex Dream Skin");
+  content: var(--dream-skin-name, "Codex 动态壁纸");
   display: block;
   margin-bottom: 9px;
   color: var(--ds-accent);

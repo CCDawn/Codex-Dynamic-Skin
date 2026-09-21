@@ -21,7 +21,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest/download/CodexDreamSkinManager.exe"><strong>下载 Windows EXE</strong></a>
+  <a href="https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest"><strong>下载 Windows 安装包</strong></a>
+  ·
+  <a href="https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest/download/CodexDreamSkinManager.exe">单文件 EXE</a>
   ·
   <a href="#macos-安装">macOS 安装</a>
   ·
@@ -38,18 +40,30 @@
 
 - **原生 UI 保持可用**：不是把一张假界面贴满窗口；侧栏、聊天、任务和输入框仍可正常交互。
 - **Codex 内部动态壁纸**：Windows 支持本地 MP4/WebM 静音循环，不是修改桌面壁纸。
+- **社区主题生态**：导入主题 ZIP（manifest + 本机 Safe CSS 校验），托盘内置主题库 Gallery 与在线 Studio 入口；主题 CSS 只作用于注册部件，不能执行任意命令。
+- **紧跟 Codex 更新**：v1.6.0 采用选择器合同引擎（`selectors.json` 三重兜底），已适配 2026 年 9 月版 Codex（26.915）。
 - **一键式 Windows 管理器**：浏览、搜索、预览和切换壁纸，调整透出度，暂停或恢复官方外观。
 - **图片变主题**：导入喜欢的 PNG、JPEG 或 WebP，自动适配全窗背景与内容可读性。
 - **可恢复、可审计**：不改官方二进制；随时停止注入并恢复 Codex 官方外观。
-- **Windows + macOS**：Windows 提供自包含 EXE，macOS 提供菜单栏 Studio 与安装脚本。
+- **Windows + macOS**：Windows 提供中文安装包与自包含 EXE，macOS 提供菜单栏 Studio 与安装脚本。
 
 ## Windows：30 秒开始
+
+**方式一：安装包（推荐）**
+
+1. 从 [Releases](https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest) 下载最新的 `CodexDreamSkin-Setup-vX.Y.Z.exe`。
+2. 双击安装：中文向导，按当前用户安装，不需要管理员权限，内置 Node.js 运行时；可勾选开机自启。
+3. 从开始菜单「Codex 动态壁纸」启动，或勾选后由开机自启的托盘接管。
+
+**方式二：单文件管理器 EXE**
 
 1. 下载 [`CodexDreamSkinManager.exe`](https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest/download/CodexDreamSkinManager.exe)。
 2. 双击运行，点击「添加壁纸」导入 PNG、JPEG、WebP、MP4 或 WebM。
 3. 点击「应用到 Codex」。需要时点击「启动 / 重新应用」。
 
 管理器是自包含的单文件程序，内置经过测试的动态壁纸引擎与 Node.js 运行时；最终用户不需要安装 .NET SDK、Node.js 或手动执行 PowerShell。
+
+> 两种方式共用同一套本机数据（主题、图片与受管引擎），可互换或共存。首次启用会使用独立的受管 CDP 配置启动 Codex，需要在 Codex 中重新登录一次，之后保持登录。
 
 > 当前发布版尚未进行代码签名，Windows 可能显示“未知发布者”。请只从本仓库的 [Releases](https://github.com/CCDawn/Codex-Dynamic-Skin/releases) 下载，并使用同页 `.sha256` 文件核对。
 
@@ -83,7 +97,9 @@ cd macos
 |---|:---:|:---:|
 | PNG / JPEG / WebP 图片主题 | ✅ | ✅ |
 | MP4 / WebM 动态壁纸 | ✅ | — |
-| 图形化主题管理 | ✅ 独立 EXE | ✅ 菜单栏 Studio |
+| 社区主题 ZIP（Safe CSS 校验） | ✅ | ✅ |
+| 中英双语托盘 / 界面 | ✅ | ✅ |
+| 图形化主题管理 | ✅ 安装包 + 独立 EXE | ✅ 菜单栏 Studio |
 | 壁纸库搜索与预览 | ✅ | ✅ |
 | 保存与切换主题 | ✅ | ✅ |
 | 壁纸透出度 | ✅ | — |
@@ -113,6 +129,8 @@ Codex renderer 中的独立背景层
 ```
 
 Windows 视频会分块传入 renderer 并组装为 Blob URL；切换、暂停或清理时会释放播放器与 Blob。页面隐藏后自动暂停视频，避免无意义播放。
+
+主题与 DOM 的对接由 `selectors.json` 选择器合同驱动：每个部件带多重兜底选择器，官方 Codex 改版后通常只需更新合同数据即可恢复兼容，不必改渲染器代码。
 
 ## 安全边界
 
@@ -152,6 +170,18 @@ bash macos/tests/run-tests.sh
 ```
 
 ## 常见问题
+
+<details>
+<summary><strong>2026 年 9 月 Codex 更新后皮肤失效了？</strong></summary>
+
+v1.1.0 及更早版本依赖旧版 DOM 选择器，在 Codex 26.915 上会失效。升级到 v1.6.0 或更新版本（安装包可直接覆盖安装，已保存的主题和图片会保留）即可恢复。
+</details>
+
+<details>
+<summary><strong>安装包和单文件 EXE 用哪个？</strong></summary>
+
+两者功能等价、共用本机数据。安装包提供开始菜单快捷方式、中文向导和卸载入口，适合长期使用；单文件 EXE 免安装、适合便携场景。已安装上游 Codex Dream Skin v1.5.x 的机器可直接用 v1.6.0 安装包原地升级，旧的英文快捷方式会自动清理。
+</details>
 
 <details>
 <summary><strong>这是 Wallpaper Engine 的替代品吗？</strong></summary>

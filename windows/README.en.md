@@ -6,7 +6,11 @@
 
 Codex 动态壁纸 loads an external theme into the official Codex Windows desktop app through loopback CDP. The native sidebar, project picker, task content, and composer remain interactive. The tool does not modify WindowsApps, `app.asar`, or the app signature.
 
-## For users: download the EXE
+## For users: install
+
+**Option 1: Setup installer (recommended)** — download `CodexDreamSkin-Setup-vX.Y.Z.exe` from [GitHub Releases](https://github.com/CCDawn/Codex-Dynamic-Skin/releases) and run the wizard (per-user, no administrator rights, optional launch at sign-in); a **Codex 动态壁纸** entry appears in the Start Menu. See [`docs/install-windows.md`](../docs/install-windows.md).
+
+**Option 2: single-file EXE** — install-free and portable:
 
 1. Download [`CodexDreamSkinManager.exe`](https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest/download/CodexDreamSkinManager.exe).
 2. Run it and choose **添加壁纸** to import an image or video.
@@ -46,7 +50,7 @@ self-contained `win-x64` executable, and runs a post-publish self-test. Output i
 ## Release install (recommended for users)
 
 Download `CodexDreamSkin-Setup-vX.Y.Z.exe` from
-[GitHub Releases](https://github.com/Fei-Away/Codex-Dream-Skin/releases) and
+[GitHub Releases](https://github.com/CCDawn/Codex-Dynamic-Skin/releases) and
 follow [`docs/install-windows.md`](../docs/install-windows.md). The installer
 contains the pinned Node runtime, so users do not need a source checkout or to
 run a `.ps1` file. It installs per-user and should not request administrator

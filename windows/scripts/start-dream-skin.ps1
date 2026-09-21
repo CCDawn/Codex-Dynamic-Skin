@@ -645,7 +645,7 @@ try {
     throw $startupError
   }
 
-  Write-Host "Codex Dream Skin is active on verified loopback port $Port."
+  Write-Host "Codex 动态壁纸已激活，验证回环端口 $Port。"
   if ($ResultToken) {
     Write-DreamSkinStartResult -StateRoot $StateRoot -Token $ResultToken `
       -Outcome 'success' -Category 'none' -AppearanceRecovery $appearanceRecovery

@@ -9,7 +9,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>CodexDreamSkinManager</AssemblyName>
     <RootNamespace>CodexDreamSkin.Manager</RootNamespace>
-    <Version>1.1.1</Version>
+    <Version>1.6.0</Version>
     <Product>Codex 动态壁纸</Product>
     <Description>One-click wallpaper manager for the official Codex Windows app.</Description>
     <Authors>CCDawn</Authors>

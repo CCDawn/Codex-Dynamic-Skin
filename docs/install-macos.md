@@ -6,7 +6,7 @@
 
 先安装官方 ChatGPT / Codex 桌面应用，至少启动一次后退出，让它创建本机配置文件。
 
-1. 在 GitHub 的 [Releases](https://github.com/Fei-Away/Codex-Dream-Skin/releases) 下载最新的
+1. 在 GitHub 的 [Releases](https://github.com/CCDawn/Codex-Dynamic-Skin/releases) 下载最新的
    `CodexDreamSkin-vX.Y.Z.dmg`。`SHA256SUMS.txt` 是可选的完整性校验文件。
 2. 双击 DMG，把 **Codex Dream Skin.app** 拖到 **Applications（应用程序）**。
 3. 第一次打开时，macOS 可能提示应用来自无法验证的开发者。这是因为公开发行包目前没有

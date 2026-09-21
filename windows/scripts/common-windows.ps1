@@ -191,9 +191,9 @@ function Enter-DreamSkinOperationLock {
   if (-not $acquired) {
     $mutex.Dispose()
     if ($TimeoutMilliseconds -eq 0) {
-      throw 'Another Codex Dream Skin install, start, restore, or verify operation is already running.'
+      throw 'Another Codex Dynamic Skin install, start, restore, or verify operation is already running.'
     }
-    throw "Another Codex Dream Skin operation did not finish within $TimeoutMilliseconds ms."
+    throw "Another Codex Dynamic Skin operation did not finish within $TimeoutMilliseconds ms."
   }
   return $mutex
 }

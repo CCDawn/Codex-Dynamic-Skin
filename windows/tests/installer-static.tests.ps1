@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param()
 
 $ErrorActionPreference = 'Stop'
@@ -71,11 +71,11 @@ foreach ($requiredDefinition in @(
   "ExtractTemporaryFiles('{tmp}\setup-bootstrap.ps1');",
   "ExtractTemporaryFiles('{tmp}\payload\*');",
   "RunBootstrap(TemporaryBootstrap, '-Install', WizardSilent, ExitCode)",
-  "RaiseException('Codex Dream Skin initialization could not be started.');",
+  "RaiseException('Codex Dynamic Skin initialization could not be started.');",
   'procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);',
   'if CurUninstallStep <> usUninstall then',
   "RunBootstrap(ExpandConstant('{app}\setup-bootstrap.ps1'), '-Uninstall', True, ExitCode)",
-  "'Codex Dream Skin could not restore Codex (exit code ' +",
+  "'Codex Dynamic Skin could not restore Codex (exit code ' +",
   "IntToStr(ExitCode) + '). No installed files were removed.'",
   '[Registry]',
   'Root: HKCU; Subkey: "Software\Classes\dreamskin"',
@@ -97,8 +97,8 @@ if (-not $definition.Contains('#define PersistentPowerShellPath "{win}\System32\
   throw 'Persistent shortcuts and URL handlers must use a System32 PowerShell path that 64-bit launchers can access.'
 }
 $persistentCommandEntries = @(
-  'Name: "{group}\Codex Dream Skin"',
-  'Name: "{userstartup}\Codex Dream Skin"',
+  'Name: "{group}\Codex 动态壁纸"',
+  'Name: "{userstartup}\Codex 动态壁纸"',
   'Subkey: "Software\Classes\dreamskin\shell\open\command"'
 )
 foreach ($entry in $persistentCommandEntries) {
@@ -123,7 +123,7 @@ $runBootstrapIndex = $definition.IndexOf(
   [System.StringComparison]::Ordinal
 )
 $uninstallFailureIndex = $definition.LastIndexOf(
-  "'Codex Dream Skin could not restore Codex (exit code ' +",
+  "'Codex Dynamic Skin could not restore Codex (exit code ' +",
   [System.StringComparison]::Ordinal
 )
 if ($uninstallStepIndex -lt 0 -or $runBootstrapIndex -le $uninstallStepIndex -or
@@ -196,7 +196,7 @@ foreach ($requiredRepairContract in @(
   'runtime\node\node.exe',
   'runtime\node\LICENSE',
   '$missingEngineFiles.Count -eq 0',
-  'A newer Codex Dream Skin',
+  'A newer Codex Dynamic Skin',
   'The installer payload is missing its bundled Node.js runtime'
 )) {
   if (-not $bootstrap.Contains($requiredRepairContract)) {

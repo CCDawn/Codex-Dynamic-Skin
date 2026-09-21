@@ -3,14 +3,14 @@ name: codex-dream-skin
 description: Apply, launch, verify, repair, update, or restore a full decorative skin for the Windows Codex desktop app. Use when the user asks for a Codex theme that goes beyond official color settings, wants the pink-purple Dream/Fiona-style interface, needs the skin reapplied after a Codex update, or needs a safe rollback without modifying WindowsApps or app.asar.
 ---
 
-# Codex Dream Skin
+# Codex 动态壁纸
 
 Apply a reversible renderer skin through Chromium DevTools Protocol while launching the official Store-installed Codex executable. Never replace or take ownership of files under `WindowsApps`.
 
 ## Workflow
 
 1. Install Node.js 22 or newer, close Codex, then run `scripts/install-dream-skin.ps1` once. The installer preserves the user's native appearance settings, seeds the Arina Hashimoto theme, copies the runtime to `%LOCALAPPDATA%\CodexDreamSkin\engine`, and creates launch/restore/tray shortcuts that do not depend on the source checkout.
-2. Use the `Codex Dream Skin` shortcut, or run `%LOCALAPPDATA%\CodexDreamSkin\engine\scripts\start-dream-skin.ps1`. The shortcut asks before restarting an already-open Codex app; CLI callers must explicitly add `-RestartExisting`.
+2. Use the `Codex 动态壁纸` shortcut, or run `%LOCALAPPDATA%\CodexDreamSkin\engine\scripts\start-dream-skin.ps1`. The shortcut asks before restarting an already-open Codex app; CLI callers must explicitly add `-RestartExisting`.
 3. Run `scripts/verify-dream-skin.ps1 -ScreenshotPath <absolute-path>` after launch. Treat a missing continuous wallpaper, home shell, native composer, sidebar layer, or injection marker as failure. The native suggestion count is responsive and may be two to four.
 4. To add a complete downloaded pack, use the tray's “导入主题 ZIP…”. Accept ordinary `.zip` only. Every new official Studio pack contains `manifest.json`, non-empty `theme.json`, non-empty locally validated `theme.css`, exactly one registered background, and optional license/signature files; the trusted local simplified format contains exactly `theme.json`, `theme.css`, and its referenced image. Import into saved themes without changing the active theme. A manually extracted complete three-file directory may instead be moved into the saved themes folder. Previously saved legacy themes without CSS remain switchable but inject no extra CSS.
 5. A compatible DreamSkin.cc theme can use the exact `dreamskin://apply?version=ver_...` link registered by Setup.exe. The handler always obtains approved metadata and the ZIP from the fixed API, requires `applyCompatible: true`, shows a native confirmation, verifies byte count and SHA-256, then reuses the strict importer before applying. It never accepts an arbitrary URL/path/command or a silent-apply flag.

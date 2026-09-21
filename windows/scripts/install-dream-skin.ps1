@@ -36,7 +36,7 @@ try {
     throw 'The saved Codex path is still running but no longer matches a registered Store package. Close it manually before installing.'
   }
   if (Test-DreamSkinTrayActive) {
-    throw 'Exit the Codex Dream Skin tray before reinstalling so every shortcut can move to the new runtime safely.'
+    throw 'Exit the Codex Dynamic Skin tray before reinstalling so every shortcut can move to the new runtime safely.'
   }
   $engine = Install-DreamSkinRuntimeEngine -SkillRoot $SkillRoot -StateRoot $StateRoot
   $null = Initialize-DreamSkinThemeStore -SkillRoot $engine.Root -StateRoot $StateRoot

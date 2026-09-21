@@ -6,7 +6,11 @@
 
 Codex 动态壁纸通过本机回环 CDP 给官方 Codex Windows 桌面应用加载外部主题。它保留原生侧栏、项目选择、任务内容和输入框，不修改 WindowsApps、`app.asar` 或应用签名。
 
-## 普通用户：下载 EXE
+## 普通用户：安装
+
+**方式一：安装包（推荐）** —— 从 [GitHub Releases](https://github.com/CCDawn/Codex-Dynamic-Skin/releases) 下载 `CodexDreamSkin-Setup-vX.Y.Z.exe`，双击按向导安装（当前用户安装、无需管理员权限、可勾选开机自启）；开始菜单会出现「Codex 动态壁纸」。图形界面步骤见 [`docs/install-windows.md`](../docs/install-windows.md)。
+
+**方式二：单文件 EXE** —— 免安装、便携：
 
 1. 下载 [`CodexDreamSkinManager.exe`](https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest/download/CodexDreamSkinManager.exe)。
 2. 双击运行，点击「添加壁纸」导入图片或视频。
@@ -46,7 +50,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\app\build-manager.ps1
 
 ## Release 安装（推荐普通用户）
 
-普通用户请从 [GitHub Releases](https://github.com/Fei-Away/Codex-Dream-Skin/releases) 下载
+普通用户请从 [GitHub Releases](https://github.com/CCDawn/Codex-Dynamic-Skin/releases) 下载
 `CodexDreamSkin-Setup-vX.Y.Z.exe`，按 [`docs/install-windows.md`](../docs/install-windows.md) 的图形
 界面步骤安装。安装器自带固定 Node 运行时，不需要 clone 仓库或运行 `.ps1`；默认按当前用户安装，
 不应要求管理员权限。未签名的新下载偶尔会触发 SmartScreen，按“更多信息 → 仍要运行”即可，

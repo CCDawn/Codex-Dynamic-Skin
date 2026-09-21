@@ -21,7 +21,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest/download/CodexDreamSkinManager.exe"><strong>Download Windows EXE</strong></a>
+  <a href="https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest"><strong>Download Windows Setup</strong></a>
+  ·
+  <a href="https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest/download/CodexDreamSkinManager.exe">Single-file EXE</a>
   ·
   <a href="#macos-installation">Install on macOS</a>
   ·
@@ -38,18 +40,30 @@
 
 - **The native UI stays interactive** — This is not a fake screenshot over the window. Sidebar, chat, tasks, and composer continue to work.
 - **Live wallpapers inside Codex** — Windows supports muted, looping local MP4/WebM backgrounds. It does not change your desktop wallpaper.
+- **Community themes** — Import theme ZIPs (manifest + local Safe CSS validation); the tray includes Gallery and Online Studio entries. Theme CSS only affects registered parts and can never execute commands.
+- **Tracks Codex updates** — v1.6.0 ships the selector-contract engine (`selectors.json` with triple fallbacks) and supports the September 2026 Codex release (26.915).
 - **One Windows manager** — Browse, search, preview, and switch wallpapers; control reveal; pause the skin; or restore the stock appearance.
 - **Turn images into themes** — Import PNG, JPEG, or WebP artwork and keep full-window composition readable.
 - **Reversible and auditable** — No official binary patching. Stop injection and return to the stock Codex appearance at any time.
-- **Windows and macOS** — Windows ships a self-contained EXE; macOS ships a menu-bar Studio and installation scripts.
+- **Windows and macOS** — Windows ships a localized Setup installer plus a self-contained EXE; macOS ships a menu-bar Studio and installation scripts.
 
 ## Windows: start in 30 seconds
+
+**Option 1: Setup installer (recommended)**
+
+1. Download the latest `CodexDreamSkin-Setup-vX.Y.Z.exe` from [Releases](https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest).
+2. Run it: per-user install, no administrator rights required, Node.js runtime bundled, optional launch-at-sign-in.
+3. Start from the Start Menu entry **Codex 动态壁纸**, or let the autostart tray handle it.
+
+**Option 2: single-file manager EXE**
 
 1. Download [`CodexDreamSkinManager.exe`](https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest/download/CodexDreamSkinManager.exe).
 2. Run it and choose **添加壁纸** to import a PNG, JPEG, WebP, MP4, or WebM wallpaper.
 3. Click **应用到 Codex**. Use **启动 / 重新应用** if Codex needs the skin reapplied.
 
 The manager is a self-contained single-file app with the tested wallpaper engine and Node.js runtime embedded. End users do not need the .NET SDK, Node.js, or manual PowerShell commands.
+
+> Both options share the same local data (themes, images, managed engine) and can be used interchangeably. The first start uses a separate managed CDP profile; sign in to Codex once, and the login is retained afterwards.
 
 > Releases are currently unsigned, so Windows may show an unknown-publisher prompt. Download only from this repository's [Releases](https://github.com/CCDawn/Codex-Dynamic-Skin/releases) page and verify the companion `.sha256` file.
 
@@ -83,7 +97,9 @@ Use the menu-bar Studio to import, save, and switch image themes. See [`macos/RE
 |---|:---:|:---:|
 | PNG / JPEG / WebP image themes | ✅ | ✅ |
 | MP4 / WebM live wallpapers | ✅ | — |
-| Graphical theme manager | ✅ Standalone EXE | ✅ Menu-bar Studio |
+| Community theme ZIPs (Safe CSS) | ✅ | ✅ |
+| Bilingual tray / UI (EN / 中文) | ✅ | ✅ |
+| Graphical theme manager | ✅ Setup + standalone EXE | ✅ Menu-bar Studio |
 | Wallpaper search and preview | ✅ | ✅ |
 | Save and switch themes | ✅ | ✅ |
 | Wallpaper reveal control | ✅ | — |
@@ -113,6 +129,8 @@ Native sidebar, tasks, and composer stay interactive
 ```
 
 Windows videos are transferred to the renderer in chunks and assembled into a Blob URL. Players and blobs are released when switching, pausing, or cleaning up. Video pauses automatically while the page is hidden.
+
+DOM integration is driven by the `selectors.json` selector contract: every part carries multiple fallback selectors, so an official Codex redesign usually only needs a contract-data update, not renderer changes.
 
 ## Security boundaries
 
@@ -152,6 +170,18 @@ bash macos/tests/run-tests.sh
 ```
 
 ## FAQ
+
+<details>
+<summary><strong>The skin broke after the September 2026 Codex update.</strong></summary>
+
+v1.1.0 and earlier relied on legacy DOM selectors and fail on Codex 26.915. Upgrade to v1.6.0 or newer (the Setup installer upgrades in place; saved themes and images are kept) to restore the skin.
+</details>
+
+<details>
+<summary><strong>Setup installer or single-file EXE?</strong></summary>
+
+They are feature-equivalent and share local data. The Setup installer adds Start Menu shortcuts, a localized wizard, and an uninstall entry for long-term use; the single-file EXE is install-free and portable. Machines running upstream Codex Dream Skin v1.5.x can upgrade in place with the v1.6.0 Setup; the legacy English shortcuts are cleaned up automatically.
+</details>
 
 <details>
 <summary><strong>Is this a Wallpaper Engine replacement?</strong></summary>

@@ -413,7 +413,7 @@
       const rgb = rgbString(value);
       if (rgb) setStyleProperty(root, name, rgb);
     }
-    setStyleProperty(root, "--dream-skin-name", cssString(THEME.name || "Codex Dream Skin"));
+    setStyleProperty(root, "--dream-skin-name", cssString(THEME.name || "Codex 动态壁纸"));
     setStyleProperty(root, "--dream-skin-tagline", cssString(THEME.tagline || "Make something wonderful."));
     setStyleProperty(root, "--dream-skin-quote", cssString(THEME.quote || "MAKE SOMETHING WONDERFUL"));
     setStyleProperty(root, "--dream-skin-brand-subtitle", cssString(
