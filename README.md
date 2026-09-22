@@ -36,6 +36,20 @@
 
 > 非 OpenAI 官方产品。Codex 动态壁纸通过仅绑定 `127.0.0.1` 的本机 CDP 注入主题，不修改 WindowsApps、`.app`、`app.asar` 或官方代码签名。
 
+## 目录
+
+- [为什么用它](#为什么用它)
+- [Windows：30 秒开始](#windows30-秒开始)
+- [macOS 安装](#macos-安装)
+- [功能对照](#功能对照)
+- [真实效果](#真实效果)
+- [工作原理](#工作原理)
+- [安全边界](#安全边界)
+- [从源码运行与构建](#从源码运行与构建)
+- [常见问题](#常见问题)
+- [文档](#文档)
+- [相关项目](#相关项目)
+
 ## 为什么用它
 
 - **原生 UI 保持可用**：不是把一张假界面贴满窗口；侧栏、聊天、任务和输入框仍可正常交互。
@@ -216,6 +230,13 @@ v1.1.0 及更早版本依赖旧版 DOM 选择器，在 Codex 26.915 上会失效
 - [参考生图提示词](./docs/reference-background-prompt-guide.md)
 - [概念图提示词](./docs/background-generation-prompts.md)
 - [项目记录](./docs/PROJECT.md)
+
+## 相关项目
+
+- [briefbound-skills](https://github.com/CCDawn/briefbound-skills) — Briefbound Agent Skills
+- [Vibelution](https://github.com/CCDawn/Vibelution) — 动态视觉/动效项目
+- [harmony-codex](https://github.com/CCDawn/harmony-codex) — 鸿蒙手机远程操作 Codex Desktop
+- [pc-touchpad](https://github.com/CCDawn/pc-touchpad) — 鸿蒙手机变 Windows 触控板
 
 ## 赞助商
 

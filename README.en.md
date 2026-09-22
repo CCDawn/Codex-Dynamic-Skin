@@ -1,4 +1,4 @@
-<h1 align="center">Codex 动态壁纸</h1>
+<h1 align="center">Codex Dynamic Wallpaper</h1>
 
 <p align="center">
   <strong>Themes, image wallpapers, and live wallpapers for the Codex desktop app.</strong><br>
@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/social-preview.png" alt="Codex 动态壁纸" width="100%">
+  <img src="docs/images/social-preview.png" alt="Codex Dynamic Wallpaper" width="100%">
 </p>
 
 <p align="center">
@@ -34,7 +34,21 @@
   <a href="https://github.com/CCDawn/Codex-Dynamic-Skin/issues">Report an issue</a>
 </p>
 
-> Unofficial and not affiliated with OpenAI. Codex 动态壁纸 injects themes through loopback-only `127.0.0.1` CDP. It does not modify WindowsApps, `.app`, `app.asar`, or the official code signature.
+> Unofficial and not affiliated with OpenAI. Codex Dynamic Wallpaper injects themes through loopback-only `127.0.0.1` CDP. It does not modify WindowsApps, `.app`, `app.asar`, or the official code signature.
+
+## Contents
+
+- [Why use it](#why-use-it)
+- [Windows: start in 30 seconds](#windows-start-in-30-seconds)
+- [macOS installation](#macos-installation)
+- [Feature matrix](#feature-matrix)
+- [Real results](#real-results)
+- [How it works](#how-it-works)
+- [Security boundaries](#security-boundaries)
+- [Run from source and build](#run-from-source-and-build)
+- [FAQ](#faq)
+- [Documentation](#documentation)
+- [Related projects](#related-projects)
 
 ## Why use it
 
@@ -217,6 +231,13 @@ No. Wallpapers and themes stay local, and injection uses only a loopback connect
 - [Concept prompt breakdown](./docs/background-generation-prompts.md)
 - [Project notes](./docs/PROJECT.md)
 
+## Related projects
+
+- [briefbound-skills](https://github.com/CCDawn/briefbound-skills) — Briefbound Agent Skills
+- [Vibelution](https://github.com/CCDawn/Vibelution) — motion/visual project
+- [harmony-codex](https://github.com/CCDawn/harmony-codex) — operate Codex Desktop from a HarmonyOS phone
+- [pc-touchpad](https://github.com/CCDawn/pc-touchpad) — HarmonyOS phone as a Windows touchpad
+
 ## Sponsor
 
 <p align="center">
@@ -243,4 +264,4 @@ This repository is an enhanced derivative of [Fei-Away/Codex-Dream-Skin](https:/
 
 ---
 
-If Codex 动态壁纸 makes Codex feel more like your own workspace, consider leaving a **Star** and sharing a screenshot of your theme.
+If Codex Dynamic Wallpaper makes Codex feel more like your own workspace, consider leaving a **Star** and sharing a screenshot of your theme.
