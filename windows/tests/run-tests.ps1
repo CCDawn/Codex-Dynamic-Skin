@@ -34,6 +34,89 @@ try {
   Remove-Item -LiteralPath $languageState -Recurse -Force -ErrorAction SilentlyContinue
 }
 
+# The manager EXE provisions its runtime purely from embedded resources, so two
+# lists must stay in lockstep: RuntimeProvisioner's ResourceMap and the csproj
+# <EmbeddedResource> manifest. Install-DreamSkinRuntimeEngine's $required array
+# in common-windows.ps1 is the authoritative engine file set, so every
+# payload-shaped (assets\ or scripts\) file it names must be embedded too — a
+# clean machine has nothing else to fall back on. This check is pure source
+# analysis and runs before the EngineOnly early exit on purpose.
+$managerProjectDirectory = Join-Path $Root 'app\CodexDreamSkin.Manager'
+$managerCsprojPath = Join-Path $managerProjectDirectory 'CodexDreamSkin.Manager.csproj'
+$provisionerPath = Join-Path $managerProjectDirectory 'RuntimeProvisioner.cs'
+if (-not (Test-Path -LiteralPath $managerCsprojPath -PathType Leaf) -or
+  -not (Test-Path -LiteralPath $provisionerPath -PathType Leaf)) {
+  throw 'Manager EXE sources are missing; the embedded-runtime contract cannot be verified.'
+}
+$provisionerSource = Read-DreamSkinUtf8File -Path $provisionerPath
+$resourceEntries = [regex]::Matches($provisionerSource, '\["([^"]+)"\]\s*=\s*@"([^"]+)"')
+if ($resourceEntries.Count -lt 10) {
+  throw 'RuntimeProvisioner ResourceMap extraction matched too few entries; update the embedded-runtime contract test.'
+}
+$resourceKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+$payloadFiles = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+foreach ($resourceEntry in $resourceEntries) {
+  [void]$resourceKeys.Add($resourceEntry.Groups[1].Value)
+  $resourceDestination = $resourceEntry.Groups[2].Value
+  if ($resourceDestination.StartsWith('payload\', [System.StringComparison]::OrdinalIgnoreCase)) {
+    [void]$payloadFiles.Add($resourceDestination.Substring('payload\'.Length))
+  }
+}
+foreach ($payloadRelative in @($payloadFiles)) {
+  if (-not (Test-Path -LiteralPath (Join-Path $Root $payloadRelative) -PathType Leaf)) {
+    throw "RuntimeProvisioner payload entry '$payloadRelative' has no source file under the Windows skill root; the manager build would embed a stale path."
+  }
+}
+$managerProjectSource = Read-DreamSkinUtf8File -Path $managerCsprojPath
+$embeddedNames = [regex]::Matches($managerProjectSource, 'LogicalName="DreamSkin\.([^"]+)"')
+if ($embeddedNames.Count -lt 10) {
+  throw 'Manager csproj EmbeddedResource extraction matched too few entries; update the embedded-runtime contract test.'
+}
+$embeddedKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+foreach ($embeddedName in $embeddedNames) {
+  [void]$embeddedKeys.Add($embeddedName.Groups[1].Value)
+}
+foreach ($resourceKey in @($resourceKeys)) {
+  if (-not $embeddedKeys.Contains($resourceKey)) {
+    throw "RuntimeProvisioner resource '$resourceKey' has no matching <EmbeddedResource> entry in the manager csproj; the EXE would fail on a clean machine."
+  }
+}
+foreach ($embeddedKey in @($embeddedKeys)) {
+  if (-not $resourceKeys.Contains($embeddedKey)) {
+    throw "Manager csproj embeds '$embeddedKey' but RuntimeProvisioner has no matching ResourceMap entry; the resource would never be extracted."
+  }
+}
+$commonEngineSource = Read-DreamSkinUtf8File -Path (Join-Path $Root 'scripts\common-windows.ps1')
+$engineRequiredBlock = [regex]::Match($commonEngineSource, '\$required = @\((?s:.*?)\)')
+if (-not $engineRequiredBlock.Success) {
+  throw 'Install-DreamSkinRuntimeEngine no longer declares its $required array; update the embedded-runtime contract test.'
+}
+$engineRequiredFiles = [regex]::Matches($engineRequiredBlock.Value, "'([^']+)'")
+if ($engineRequiredFiles.Count -lt 10) {
+  throw 'Install-DreamSkinRuntimeEngine $required extraction matched too few files; update the embedded-runtime contract test.'
+}
+# Files the manager EXE intentionally does not embed: standalone CLI entries
+# and the machine-readable Safe CSS policy mirror are never invoked by the
+# manager's Start / Restore / ManagerCommand payload flow.
+$managerUnembeddedFiles = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+foreach ($managerUnembeddedFile in @(
+  'assets\safe-css-policy.json',
+  'scripts\apply-community-theme.ps1',
+  'scripts\check-update.ps1',
+  'scripts\validate-safe-css-file.mjs'
+)) {
+  [void]$managerUnembeddedFiles.Add($managerUnembeddedFile)
+}
+foreach ($engineRequiredFile in $engineRequiredFiles) {
+  $engineRelative = $engineRequiredFile.Groups[1].Value
+  $engineIsPayloadShaped = $engineRelative.StartsWith('assets\', [System.StringComparison]::OrdinalIgnoreCase) -or
+    $engineRelative.StartsWith('scripts\', [System.StringComparison]::OrdinalIgnoreCase)
+  if (-not $engineIsPayloadShaped -or $managerUnembeddedFiles.Contains($engineRelative)) { continue }
+  if (-not $payloadFiles.Contains($engineRelative)) {
+    throw "Install-DreamSkinRuntimeEngine requires '$engineRelative' but the manager EXE does not embed it; Start/Restore would fail on a clean machine. Add it to both RuntimeProvisioner.ResourceMap and the csproj <EmbeddedResource> list."
+  }
+}
+
 $temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) "codex-dream-skin-tests-$PID-$([guid]::NewGuid().ToString('N'))"
 New-Item -ItemType Directory -Path $temporaryRoot | Out-Null
 
