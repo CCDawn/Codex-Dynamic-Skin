@@ -251,12 +251,86 @@ function makeFixture({
     };
     return node;
   };
+  const videoElements = [];
+  const canvasElements = [];
+  // A DOM-ish HTMLMediaElement: enough surface for the poster transport to
+  // attach listeners, seek, capture a frame and reclaim the element, with
+  // readyState and media events driven explicitly by each scenario.
+  const makeVideoElement = () => {
+    const node = makeDomNode("video");
+    const mediaListeners = new Map();
+    Object.defineProperty(node, "isConnected", { get: () => Boolean(node.parentElement) });
+    Object.assign(node, {
+      tagName: "video",
+      autoplay: false,
+      controls: false,
+      loop: false,
+      muted: false,
+      defaultMuted: false,
+      playsInline: false,
+      preload: "",
+      playbackRate: 1,
+      paused: true,
+      readyState: 0,
+      currentTime: 0,
+      duration: 30,
+      videoWidth: 320,
+      videoHeight: 180,
+      src: "",
+      loadCount: 0,
+      addEventListener(type, callback) {
+        const current = mediaListeners.get(type) || [];
+        current.push(callback);
+        mediaListeners.set(type, current);
+      },
+      removeEventListener(type, callback) {
+        mediaListeners.set(type, (mediaListeners.get(type) || [])
+          .filter((item) => item !== callback));
+      },
+      emit(type) {
+        for (const callback of [...(mediaListeners.get(type) || [])]) callback();
+      },
+      pause() { node.paused = true; },
+      play() { node.paused = false; return Promise.resolve(); },
+      load() { node.readyState = 0; node.loadCount += 1; },
+      remove() { if (node.id) nodes.delete(node.id); node.parentElement = null; },
+    });
+    videoElements.push(node);
+    return node;
+  };
+  const makeCanvasElement = () => {
+    const node = {
+      width: 0,
+      height: 0,
+      captured: null,
+      encoded: null,
+      getContext(type) {
+        node.contextType = type;
+        return {
+          drawImage(source, x, y, width, height) {
+            node.captured = { source, x, y, width, height };
+          },
+        };
+      },
+      toDataURL(mime, quality) {
+        node.encoded = { mime, quality, width: node.width, height: node.height };
+        return "data:image/jpeg;base64,cG9zdGVyLWZyYW1l";
+      },
+    };
+    canvasElements.push(node);
+    return node;
+  };
   const document = {
     documentElement: root,
     head: root,
     body,
     adoptedStyleSheets: adopted ? [] : undefined,
-    createElement(tag) { return tag === "style" ? makeStyleNode() : { tagName: tag }; },
+    createElement(tag) {
+      if (tag === "style") return makeStyleNode();
+      if (tag === "video") return makeVideoElement();
+      if (tag === "canvas") return makeCanvasElement();
+      return { tagName: tag };
+    },
     getElementById(id) { return nodes.get(id) || null; },
     querySelector(selector) {
       return (selectorNodes.get(selector) || [])[0] || null;
@@ -341,8 +415,9 @@ function makeFixture({
     return node;
   };
   return {
-    addDynamicMessage, attrs, context, document, domNodes, flushTimers, intervals, listeners,
-    nodes, observers, partFixtures, payloadFor, revoked, root, rootClasses, rootStyle, timers, window,
+    addDynamicMessage, attrs, canvasElements, context, document, domNodes, flushTimers,
+    intervals, listeners, nodes, observers, partFixtures, payloadFor, revoked, root,
+    rootClasses, rootStyle, timers, videoElements, window,
   };
 }
 
@@ -1270,6 +1345,96 @@ export async function runRendererRuntimeTest(assetRoot) {
   assert.ok(fallback.nodes.has("codex-dream-skin-style"));
   assert.equal(fallbackState.cleanup(), true);
   assert.equal(fallback.nodes.has("codex-dream-skin-style"), false);
+
+  // Poster transport: one captured frame replaces the looping video. Each
+  // scenario stages the same transferred media, then drives loadeddata and
+  // seeked explicitly through the mock media element.
+  const posterTheme = { media: {
+    type: "video", transport: "poster", mime: "video/mp4", size: 12, posterTime: 2,
+  } };
+  const posterChunk = Buffer.from("poster-frame").toString("base64");
+  const transferPosterMedia = (state) => {
+    assert.equal(state.beginMedia({ mime: "video/mp4", size: 12 }), true);
+    assert.equal(state.appendMedia(posterChunk), true);
+    assert.equal(state.commitMedia(), true);
+    return state.mediaUrl;
+  };
+
+  const posterSuccess = makeFixture({ nativeAppearance: "dark" });
+  vm.runInNewContext(posterSuccess.payloadFor(posterTheme), posterSuccess.context);
+  const posterSuccessState = posterSuccess.window.__CODEX_DREAM_SKIN_STATE__;
+  assert.equal(posterSuccessState.config.transport, "poster");
+  const posterBlobUrl = transferPosterMedia(posterSuccessState);
+  const posterVideo = posterSuccess.videoElements[0];
+  assert.ok(posterVideo, "Poster transport must stage a media element.");
+  assert.equal(posterVideo.parentElement, posterSuccess.document.body);
+  posterVideo.readyState = 1;
+  posterVideo.emit("loadeddata");
+  assert.equal(posterVideo.currentTime, 2,
+    "The poster capture must seek to the configured poster time.");
+  posterVideo.readyState = 4;
+  posterVideo.emit("seeked");
+  assert.equal(posterSuccessState.posterArtUrl, "data:image/jpeg;base64,cG9zdGVyLWZyYW1l",
+    "A completed seek must capture the frame as poster art.");
+  const posterCanvas = posterSuccess.canvasElements[0];
+  assert.ok(posterCanvas?.captured, "The poster frame must be drawn through a canvas.");
+  assert.equal(posterCanvas.captured.source, posterVideo);
+  assert.equal(posterCanvas.encoded.width, 320);
+  assert.equal(posterCanvas.encoded.height, 180);
+  assert.equal(posterSuccess.document.getElementById("codex-dream-skin-media"), null,
+    "The video element must be reclaimed after the frame is painted.");
+  assert.equal(posterVideo.parentElement, null);
+  assert.equal(posterVideo.paused, true);
+  assert.ok(posterSuccess.revoked.includes(posterBlobUrl),
+    "The media blob must be revoked once the frame is captured.");
+  assert.equal(posterSuccessState.mediaUrl, null);
+  assert.equal(posterSuccess.rootStyle.values.get("--dream-skin-art"),
+    'url("data:image/jpeg;base64,cG9zdGVyLWZyYW1l")',
+    "The captured frame must become the static CSS art.");
+  posterSuccess.flushTimers();
+  assert.equal(posterSuccess.document.getElementById("codex-dream-skin-media"), null,
+    "The settled fallback timeout must stay inert after a successful capture.");
+
+  const posterFallback = makeFixture({ nativeAppearance: "dark" });
+  vm.runInNewContext(posterFallback.payloadFor(posterTheme), posterFallback.context);
+  const posterFallbackState = posterFallback.window.__CODEX_DREAM_SKIN_STATE__;
+  const fallbackBlobUrl = transferPosterMedia(posterFallbackState);
+  const fallbackVideo = posterFallback.videoElements[0];
+  fallbackVideo.readyState = 1;
+  fallbackVideo.emit("loadeddata");
+  // seeked without decoded frames: capture fails and the session falls back.
+  fallbackVideo.emit("seeked");
+  assert.equal(posterFallbackState.config.transport, "video",
+    "The runtime state must report the live video transport after a failed capture.");
+  assert.equal(posterFallbackState.posterArtUrl, null);
+  assert.equal(posterFallback.document.getElementById("codex-dream-skin-media"), fallbackVideo,
+    "The media element must remain in place as looping video.");
+  assert.equal(fallbackVideo.loop, true);
+  assert.equal(fallbackVideo.paused, false, "The fallback video must be playing.");
+  assert.equal(posterFallbackState.mediaUrl, fallbackBlobUrl,
+    "The media blob must stay alive for the fallback video.");
+  assert.ok(!posterFallback.revoked.includes(fallbackBlobUrl));
+  posterFallback.flushTimers();
+  assert.equal(posterFallback.document.getElementById("codex-dream-skin-media"), fallbackVideo,
+    "The settled fallback timeout must not undo the video fallback.");
+
+  const posterCleanup = makeFixture({ nativeAppearance: "dark" });
+  vm.runInNewContext(posterCleanup.payloadFor(posterTheme), posterCleanup.context);
+  const posterCleanupState = posterCleanup.window.__CODEX_DREAM_SKIN_STATE__;
+  const cleanupBlobUrl = transferPosterMedia(posterCleanupState);
+  assert.ok([...posterCleanup.timers.values()].some((timer) => timer.delay === 6000),
+    "The poster capture must arm its 6s fallback timeout.");
+  assert.equal(posterCleanupState.cleanup(), true);
+  assert.equal(posterCleanup.timers.size, 0,
+    "Cleanup must cancel the pending poster fallback timeout.");
+  posterCleanup.flushTimers();
+  assert.equal(posterCleanup.document.getElementById("codex-dream-skin-media"), null,
+    "A flushed late fallback timeout must not revive the reclaimed media.");
+  assert.equal(posterCleanup.videoElements.length, 1,
+    "No replacement media element may be created after cleanup.");
+  assert.equal(posterCleanup.window.__CODEX_DREAM_SKIN_STATE__, undefined);
+  assert.ok(posterCleanup.revoked.includes(cleanupBlobUrl),
+    "Cleanup must revoke the pending media blob.");
 
   console.log(`PASS: unified renderer runtime (${path.basename(assetRoot)})`);
 }

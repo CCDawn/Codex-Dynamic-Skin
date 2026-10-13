@@ -172,6 +172,7 @@
   let mediaUrl = null;
   let posterArtUrl = null;
   let posterCaptureStarted = false;
+  let posterTimer = null;
   let mediaTransfer = null;
   let streamController = null;
 
@@ -782,6 +783,13 @@
     const finish = () => {
       if (settled) return;
       settled = true;
+      if (posterTimer) clearTimeout(posterTimer);
+      posterTimer = null;
+      // A late seeked/timeout after cleanup (or a replacement install) must
+      // neither repaint a cleaned root nor revive the reclaimed media.
+      if (window[DISABLED_KEY]) return;
+      const state = window[STATE_KEY];
+      if (state?.installToken !== installToken) return;
       try {
         if (!media.isConnected || media.readyState < 2) throw new Error("poster frame unavailable");
         const canvas = document.createElement("canvas");
@@ -791,19 +799,21 @@
         posterArtUrl = canvas.toDataURL("image/jpeg", 0.86);
       } catch {
         // Capture failed (codec or canvas limits): keep the video playing
-        // instead of leaving the session without a wallpaper.
+        // instead of leaving the session without a wallpaper. Mirror the
+        // flip into the runtime state so verification reads the live
+        // transport instead of the install-time poster snapshot.
         videoConfig.transport = "video";
+        state.config.transport = "video";
         syncMediaElement();
         return;
       }
-      const state = window[STATE_KEY];
-      if (state?.installToken === installToken) state.posterArtUrl = posterArtUrl;
+      state.posterArtUrl = posterArtUrl;
       media.pause?.();
       media.removeAttribute?.("src");
       media.load?.();
       if (mediaUrl) URL.revokeObjectURL(mediaUrl);
       mediaUrl = null;
-      if (state?.installToken === installToken) state.mediaUrl = null;
+      state.mediaUrl = null;
       document.getElementById(MEDIA_ID)?.remove();
       applyRootState(document.documentElement);
     };
@@ -821,12 +831,20 @@
     if (media.readyState >= 1) seek();
     else media.addEventListener?.("loadeddata", seek, { once: true });
     // A hidden or throttled surface may never fire seeked; fall through to
-    // the video fallback rather than waiting forever.
-    setTimeout(() => finish(), 6000);
+    // the video fallback rather than waiting forever. Like analysisTimer, the
+    // fallback handle is tracked so cleanup cancels it instead of letting it
+    // fire on a torn-down session.
+    if (posterTimer) clearTimeout(posterTimer);
+    posterTimer = setTimeout(() => finish(), 6000);
+    const currentState = window[STATE_KEY];
+    if (currentState?.installToken === installToken) currentState.posterTimer = posterTimer;
     return true;
   };
 
   const syncMediaElement = () => {
+    // Late poster callbacks (seeked or the fallback timeout) must not rebuild
+    // the media element on a cleaned-up or replaced install.
+    if (window[DISABLED_KEY] || window[STATE_KEY]?.installToken !== installToken) return null;
     let media = document.getElementById(MEDIA_ID);
     if (videoConfig.mediaType !== "video" || !shellElementPresent()) {
       media?.remove();
@@ -1373,6 +1391,8 @@
     if (state?.timer) clearInterval(state.timer);
     if (state?.scheduler?.timeout) clearTimeout(state.scheduler.timeout);
     if (analysisTimer) clearTimeout(analysisTimer);
+    if (posterTimer) clearTimeout(posterTimer);
+    posterTimer = null;
     if (state?.mediaHandler && state?.mediaQuery) {
       try { state.mediaQuery.removeEventListener("change", state.mediaHandler); } catch {}
     }
