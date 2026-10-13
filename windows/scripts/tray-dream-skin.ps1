@@ -72,6 +72,27 @@ try {
     Get-DreamSkinText -Key $Key -Language $language -FormatArguments $FormatArguments
   }
 
+  function Write-DreamSkinTrayWatchdogLog {
+    # The session watchdog must survive its own failures: a throwing tick
+    # would otherwise escape into the WinForms message loop and kill the
+    # tray. Record the failure in a bounded log beside the injector logs
+    # and let the next tick retry.
+    param([Parameter(Mandatory = $true)][string]$Message)
+    try {
+      $logPath = Join-Path $StateRoot 'tray-watchdog.log'
+      $existing = ''
+      if (Test-Path -LiteralPath $logPath -PathType Leaf) {
+        try { $existing = Read-DreamSkinUtf8File -Path $logPath } catch { $existing = '' }
+      }
+      $lines = @($existing -split "`r?`n" | Where-Object { $_ })
+      $lines += "$((Get-Date).ToUniversalTime().ToString('o')) $Message"
+      if ($lines.Count -gt 50) { $lines = $lines[($lines.Count - 50)..($lines.Count - 1)] }
+      Write-DreamSkinUtf8FileAtomically -Path $logPath -Content (($lines -join "`r`n") + "`r`n")
+    } catch {
+      # Watchdog logging itself must never surface UI or break the timer loop.
+    }
+  }
+
   function Start-DreamSkinPowerShell {
     param([Parameter(Mandatory = $true)][string]$Script, [string[]]$Arguments = @())
     $scriptToken = ConvertTo-DreamSkinProcessArgument -Value $Script
@@ -515,23 +536,52 @@ try {
   # Session-transport watchdog: RDP <-> console switches do not restart the
   # tray, but they flip whether continuous video playback is affordable.
   # Re-apply the current theme when the remote state changes so the
-  # injector re-stamps transport (poster <-> video).
+  # injector re-stamps transport (poster <-> video). The watcher only
+  # re-stamps a live, already-injected session: the serialized start path
+  # clears the pause marker unconditionally and cold-launches Codex with
+  # debugging arguments when no CDP endpoint is alive, so a flip while the
+  # user paused the skin, or with no live session, must not spawn it.
   $script:lastRemoteSession = Test-DreamSkinRemoteSession
-  if ($script:lastRemoteSession) { $notify.Text = 'Codex 动态壁纸 · 远程静态帧' }
+  $notify.Text = if ($script:lastRemoteSession) {
+    Get-DreamSkinTrayText -Key 'SessionTooltipPoster'
+  } else {
+    Get-DreamSkinTrayText -Key 'SessionTooltipVideo'
+  }
   $sessionWatch = [System.Windows.Forms.Timer]::new()
   $sessionWatch.Interval = 60000
   $sessionWatch.Add_Tick({
-    $currentRemote = Test-DreamSkinRemoteSession
-    if ($currentRemote -eq $script:lastRemoteSession) { return }
-    $script:lastRemoteSession = $currentRemote
-    $transportMessage = if ($currentRemote) {
-      Get-DreamSkinTrayText -Key 'SessionTransportPoster'
-    } else {
-      Get-DreamSkinTrayText -Key 'SessionTransportVideo'
+    try {
+      $currentRemote = Test-DreamSkinRemoteSession
+      if ($currentRemote -eq $script:lastRemoteSession) { return }
+      $script:lastRemoteSession = $currentRemote
+      $notify.Text = if ($currentRemote) {
+        Get-DreamSkinTrayText -Key 'SessionTooltipPoster'
+      } else {
+        Get-DreamSkinTrayText -Key 'SessionTooltipVideo'
+      }
+      if (Test-DreamSkinPaused -StateRoot $StateRoot) {
+        # Paused is the user's explicit state; resuming stays the user's
+        # explicit Resume action, never the watcher's.
+        $notify.ShowBalloonTip(2200, 'Codex 动态壁纸', (Get-DreamSkinTrayText -Key 'SessionWatchPausedSkip'), [System.Windows.Forms.ToolTipIcon]::Info)
+        return
+      }
+      $session = Get-DreamSkinLiveSessionContext -StateRoot $StateRoot
+      if ($null -eq $session -or
+        $null -eq (Get-DreamSkinVerifiedCdpIdentityForAnyRegistered -Port $session.Port)) {
+        # No injected CDP session is alive to re-stamp. Spawning start here
+        # would cold-launch Codex with debugging arguments.
+        return
+      }
+      $transportMessage = if ($currentRemote) {
+        Get-DreamSkinTrayText -Key 'SessionTransportPoster'
+      } else {
+        Get-DreamSkinTrayText -Key 'SessionTransportVideo'
+      }
+      $notify.ShowBalloonTip(2200, 'Codex 动态壁纸', $transportMessage, [System.Windows.Forms.ToolTipIcon]::Info)
+      Start-DreamSkinPowerShell -Script $startScript -Arguments @('-Port', "$($session.Port)", '-PromptRestart')
+    } catch {
+      Write-DreamSkinTrayWatchdogLog -Message "Session watchdog tick failed: $($_.Exception.Message)"
     }
-    $notify.Text = if ($currentRemote) { 'Codex 动态壁纸 · 远程静态帧' } else { 'Codex 动态壁纸' }
-    $notify.ShowBalloonTip(2200, 'Codex 动态壁纸', $transportMessage, [System.Windows.Forms.ToolTipIcon]::Info)
-    Start-DreamSkinPowerShell -Script $startScript -Arguments @('-Port', "$Port", '-PromptRestart')
   })
   $sessionWatch.Start()
   $showTimer = [System.Windows.Forms.Timer]::new()

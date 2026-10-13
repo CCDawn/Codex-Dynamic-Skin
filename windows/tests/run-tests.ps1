@@ -1775,6 +1775,63 @@ try {
   if (-not $startSource.Contains('Get-DreamSkinVerifiedCdpIdentityForAnyRegistered')) {
     throw 'Start lost the any-registered endpoint fallback for Store auto-updates.'
   }
+  # RDP session-transport contract: start must stamp the poster env var only
+  # for remote sessions and clear it on the normal path, and the tray session
+  # watchdog may only re-stamp a live, already-injected session -- never a
+  # paused one (start clears the pause marker unconditionally) and never a
+  # cold launch (start opens Codex with debugging arguments when no verified
+  # CDP endpoint is alive).
+  $remoteProbeIndex = $startSource.IndexOf('Test-DreamSkinRemoteSession', [System.StringComparison]::Ordinal)
+  $posterSetIndex = $startSource.IndexOf("`$env:CODEX_DREAM_SKIN_POSTER = '1'", [System.StringComparison]::Ordinal)
+  $posterClearIndex = $startSource.IndexOf('Remove-Item Env:CODEX_DREAM_SKIN_POSTER', [System.StringComparison]::Ordinal)
+  if ($remoteProbeIndex -lt 0 -or $posterSetIndex -le $remoteProbeIndex -or
+    $posterClearIndex -le $posterSetIndex) {
+    throw 'Start no longer sets CODEX_DREAM_SKIN_POSTER only for remote sessions and clears it otherwise.'
+  }
+  $watchdogTickMatch = [regex]::Match($traySource, '(?s)\$sessionWatch\.Add_Tick\(\{(?<body>.*?)\r?\n  \}\)')
+  if (-not $watchdogTickMatch.Success) {
+    throw 'Tray session watchdog tick handler could not be located for the RDP contract check.'
+  }
+  $watchdogTickBody = $watchdogTickMatch.Groups['body'].Value
+  foreach ($requiredWatchdogBehavior in @(
+    'Test-DreamSkinRemoteSession',
+    'Test-DreamSkinPaused -StateRoot $StateRoot',
+    'Get-DreamSkinLiveSessionContext -StateRoot $StateRoot',
+    'Get-DreamSkinVerifiedCdpIdentityForAnyRegistered -Port $session.Port',
+    "Get-DreamSkinTrayText -Key 'SessionTooltipPoster'",
+    "Get-DreamSkinTrayText -Key 'SessionTooltipVideo'",
+    "Get-DreamSkinTrayText -Key 'SessionWatchPausedSkip'"
+  )) {
+    if (-not $watchdogTickBody.Contains($requiredWatchdogBehavior)) {
+      throw "Tray session watchdog lost required behavior: $requiredWatchdogBehavior"
+    }
+  }
+  $watchdogTryIndex = $watchdogTickBody.IndexOf('try {', [System.StringComparison]::Ordinal)
+  $watchdogCatchIndex = $watchdogTickBody.IndexOf('} catch {', [System.StringComparison]::Ordinal)
+  if ($watchdogTryIndex -lt 0 -or $watchdogCatchIndex -le $watchdogTryIndex -or
+    -not $watchdogTickBody.Contains('Write-DreamSkinTrayWatchdogLog')) {
+    throw 'Tray session watchdog tick must wrap its body in try/catch and log failures silently.'
+  }
+  $watchdogPauseIndex = $watchdogTickBody.IndexOf('Test-DreamSkinPaused -StateRoot $StateRoot', [System.StringComparison]::Ordinal)
+  $watchdogSessionIndex = $watchdogTickBody.IndexOf('Get-DreamSkinVerifiedCdpIdentityForAnyRegistered', [System.StringComparison]::Ordinal)
+  $watchdogSpawnIndex = $watchdogTickBody.IndexOf('Start-DreamSkinPowerShell -Script $startScript', [System.StringComparison]::Ordinal)
+  if ($watchdogPauseIndex -lt 0 -or $watchdogSessionIndex -lt 0 -or $watchdogSpawnIndex -lt 0 -or
+    $watchdogSpawnIndex -le $watchdogPauseIndex -or $watchdogSpawnIndex -le $watchdogSessionIndex) {
+    throw 'Tray session watchdog still spawns start before its pause and live-session guards.'
+  }
+  $remoteSessionProbe = Test-DreamSkinRemoteSession
+  if ($remoteSessionProbe -isnot [bool]) {
+    throw 'Test-DreamSkinRemoteSession must return a bool through its WTS probe or SESSIONNAME fallback.'
+  }
+  foreach ($sessionLocalizationKey in @('SessionTooltipPoster', 'SessionTooltipVideo', 'SessionWatchPausedSkip')) {
+    $sessionKeyEnglish = Get-DreamSkinText -Key $sessionLocalizationKey -Language 'en-US'
+    $sessionKeyChinese = Get-DreamSkinText -Key $sessionLocalizationKey -Language 'zh-CN'
+    if ([string]::IsNullOrWhiteSpace($sessionKeyEnglish) -or
+      [string]::IsNullOrWhiteSpace($sessionKeyChinese) -or
+      $sessionKeyEnglish -ceq $sessionKeyChinese) {
+      throw "Session localization key is missing or not translated in both catalogs: $sessionLocalizationKey"
+    }
+  }
   $verifyScriptSource = Read-DreamSkinUtf8File -Path (Join-Path $Root 'scripts\verify-dream-skin.ps1')
   if (-not $verifyScriptSource.Contains(". (Join-Path `$PSScriptRoot 'theme-windows.ps1')")) {
     throw 'Verify must dot-source theme-windows.ps1 before using theme store helpers such as Get-DreamSkinThemePaths.'
