@@ -54,7 +54,7 @@
 ## 4. 仓库结构
 
 ```text
-Codex-Dream-Skin-Enhanced/
+Codex-Dynamic-Skin/
 ├── README.md              # 默认中文
 ├── README.en.md           # English
 ├── docs/

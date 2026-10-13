@@ -120,12 +120,14 @@ jobs:
           common="$(sed -n 's/^SKIN_VERSION="\([^"]*\)"$/\1/p' macos/scripts/common-macos.sh)"
           macos_injector="$(sed -n 's/^const SKIN_VERSION = "\([^"]*\)";$/\1/p' macos/scripts/injector.mjs)"
           windows_injector="$(sed -n 's/^const SKIN_VERSION = "\([^"]*\)";$/\1/p' windows/scripts/injector.mjs)"
+          manager_version="$(sed -n 's|^[[:space:]]*<Version>\([^<]*\)</Version>[[:space:]]*$|\1|p' windows/app/CodexDreamSkin.Manager/CodexDreamSkin.Manager.csproj)"
           test -n "$expected"
           test "$windows_version" = "$expected"
           test "$package_version" = "$expected"
           test "$common" = "$expected"
           test "$macos_injector" = "$expected"
           test "$windows_injector" = "$expected"
+          test "$manager_version" = "$expected"
 
       - name: Check selector contract provenance
         shell: bash
