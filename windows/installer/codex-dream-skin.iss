@@ -8,6 +8,10 @@
   #error OutputDir must be supplied by build-release.ps1
 #endif
 
+#if !FileExists(StageRoot + "\payload\assets\theme-manager\DreamSkin.ThemeManager.exe")
+  #error Build the native theme manager with node tools/build-theme-manager.mjs before packaging
+#endif
+
 #define AppName "Codex 动态壁纸"
 #define AppPublisher "Codex 动态壁纸 contributors"
 #define AppUrl "https://github.com/CCDawn/Codex-Dynamic-Skin"
@@ -77,7 +81,8 @@ Source: "{#StageRoot}\NOTICE.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#StageRoot}\payload\*"; DestDir: "{app}\payload"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\Codex 动态壁纸"; Filename: "{#PersistentPowerShellPath}"; Parameters: "-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy RemoteSigned -File ""{app}\setup-bootstrap.ps1"" -LaunchTray"; WorkingDir: "{app}"; IconFilename: "{app}\payload\assets\codex-dream-skin.ico"
+Name: "{group}\Codex 动态壁纸"; Filename: "{#PersistentPowerShellPath}"; Parameters: "-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy RemoteSigned -File ""{app}\setup-bootstrap.ps1"" -LaunchTray -ShowWindow"; WorkingDir: "{app}"; IconFilename: "{app}\payload\assets\codex-dream-skin.ico"
+Name: "{userdesktop}\Codex 动态壁纸"; Filename: "{#PersistentPowerShellPath}"; Parameters: "-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy RemoteSigned -File ""{app}\setup-bootstrap.ps1"" -LaunchTray -ShowWindow"; WorkingDir: "{app}"; IconFilename: "{app}\payload\assets\codex-dream-skin.ico"
 Name: "{userstartup}\Codex 动态壁纸"; Filename: "{#PersistentPowerShellPath}"; Parameters: "-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy RemoteSigned -File ""{app}\setup-bootstrap.ps1"" -LaunchTray"; WorkingDir: "{app}"; IconFilename: "{app}\payload\assets\codex-dream-skin.ico"; Tasks: startup
 
 [Registry]

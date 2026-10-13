@@ -21,6 +21,7 @@ runtime/*
 !runtime/safe-css-policy.json
 !runtime/safe-css-validator.mjs
 !runtime/theme-package-validator.mjs
+!runtime/theme-preferences.mjs
 !runtime/validate-safe-css-file.mjs
 
 # local agent context
@@ -31,3 +32,8 @@ docs/architecture-cdp-and-cross-platform-grok45.md
 docs/unified-skin-runtime-plan.md
 .docs/
 PROJECT_MEMORY.html
+
+# Native Windows theme manager build output
+windows/theme-manager/**/bin/
+windows/theme-manager/**/obj/
+windows/assets/theme-manager/

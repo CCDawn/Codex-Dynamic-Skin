@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.5.20
+
+- 修复首页副文案不跟随 `home-hero` 的 Safe CSS 字号和颜色的问题（[#427](https://github.com/Fei-Away/Codex-Dream-Skin/issues/427)）：支持 12–20px 合法字号，保留 76% 不透明度；未指定字号时仍为桌面 13px、窄窗口 11px。
+- 统一以 `LC_ALL=C` 读取进程 `lstart`，修复不同语言环境造成的会话身份误判（[#429](https://github.com/Fei-Away/Codex-Dream-Skin/issues/429)）；保留进程身份校验。感谢 @z460440448 在 [#430](https://github.com/Fei-Away/Codex-Dream-Skin/pull/430) 中的分析和修复建议，实际修复通过 [#431](https://github.com/Fei-Away/Codex-Dream-Skin/pull/431) 交付。
+- 旧记录中的非英文启动时间不会自动迁移；若升级后无法确认旧会话，请完整退出旧会话后重新启动，必要时重启 macOS，不要仅凭旧 PID 强制结束进程。完整说明见 [v1.5.20 发布说明](../docs/releases/v1.5.20.md)。
+
+## 1.5.19
+
+- 适配 Codex / ChatGPT 26.930 的缓存页面、标题栏、工具页面、代码块和展开表格，修复原生鼠标被装饰层拖动区域拦截的问题。保留 #416（@yes-10）与 #418（@chenzhaoxuan0）的原作者提交。
+- 背景透明度遵循“用户设置 > 作者明确 alpha > 历史主题默认 30%”；macOS 主题菜单新增按主题保存的透明度滑块与“跟随主题”。Windows 原生管理窗口支持同一偏好格式。
+- 缓存皮肤 CSS 的结构判断，页面结构变化时批量更新，减少滚动和 ChatGPT Work / Codex 切换时的整页样式重算；不在原生编辑器内部写入缓存标记。
+- 主题菜单新增“删除已保存主题”：确认后移到系统废纸篓，使用中的主题需先切换；保留原始 ZIP 和恢复备份。
+
 ## 1.5.18
 
 - 修复 Codex 26.901.41123 首页建议卡文字改用 `text-default` 后未跟随主题色、导致实机校验失败的问题；保留旧文字类兼容及图标强调色，不放宽校验。

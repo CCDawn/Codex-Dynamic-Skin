@@ -38,10 +38,11 @@ try {
   if (Test-DreamSkinTrayActive) {
     throw 'Exit the Codex Dynamic Skin tray before reinstalling so every shortcut can move to the new runtime safely.'
   }
+  $configPaths = Resolve-DreamSkinConfigPaths -StateRoot $StateRoot -BindBackup
   $engine = Install-DreamSkinRuntimeEngine -SkillRoot $SkillRoot -StateRoot $StateRoot
   $null = Initialize-DreamSkinThemeStore -SkillRoot $engine.Root -StateRoot $StateRoot
-  $ConfigPath = Join-Path $HOME '.codex\config.toml'
-  $BackupPath = Join-Path $StateRoot 'config.before-dream-skin.toml'
+  $ConfigPath = $configPaths.ConfigPath
+  $BackupPath = $configPaths.BackupPath
   Install-DreamSkinBaseTheme -ConfigPath $ConfigPath -BackupPath $BackupPath `
     -AppearanceTheme (Get-DreamSkinActiveThemeAppearance -ThemeDirectory $themePaths.Active)
 
@@ -53,14 +54,16 @@ try {
     $startScript = $engine.Start
     $restoreScript = $engine.Restore
     $trayScript = $engine.Tray
+    $iconPath = Join-Path $engine.Root 'assets\codex-dream-skin.ico'
     $portArgument = if ($PortExplicit) { " -Port $Port" } else { '' }
 
     foreach ($folder in @($desktop, $startMenu)) {
       $shortcut = $shell.CreateShortcut((Join-Path $folder 'Codex 动态壁纸.lnk'))
       $shortcut.TargetPath = $powershell
-      $shortcut.Arguments = "-NoProfile -ExecutionPolicy RemoteSigned -File `"$startScript`"$portArgument -PromptRestart"
+      $shortcut.Arguments = "-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy RemoteSigned -File `"$trayScript`"$portArgument -ShowWindow"
       $shortcut.WorkingDirectory = $engine.Root
       $shortcut.Description = '启动 Codex 并应用动态壁纸'
+      if (Test-Path -LiteralPath $iconPath -PathType Leaf) { $shortcut.IconLocation = "$iconPath,0" }
       $shortcut.Save()
     }
 
@@ -69,6 +72,7 @@ try {
     $restore.Arguments = "-NoProfile -ExecutionPolicy RemoteSigned -File `"$restoreScript`"$portArgument -RestoreBaseTheme -PromptRestart"
     $restore.WorkingDirectory = $engine.Root
     $restore.Description = 'Restore the official Codex appearance and close the CDP session'
+    if (Test-Path -LiteralPath $iconPath -PathType Leaf) { $restore.IconLocation = "$iconPath,0" }
     $restore.Save()
 
     foreach ($folder in @($desktop, $startMenu)) {
@@ -77,6 +81,7 @@ try {
       $tray.Arguments = "-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy RemoteSigned -File `"$trayScript`"$portArgument"
       $tray.WorkingDirectory = $engine.Root
       $tray.Description = '打开 Codex 动态壁纸托盘控制'
+      if (Test-Path -LiteralPath $iconPath -PathType Leaf) { $tray.IconLocation = "$iconPath,0" }
       $tray.Save()
     }
     Start-Process -FilePath $powershell -ArgumentList `
