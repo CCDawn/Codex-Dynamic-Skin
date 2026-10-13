@@ -74,7 +74,7 @@ fi
 
 # Prompt guides are authored from the repository root. The macOS tree becomes
 # the root of standalone archives, while Windows files remain repository-only.
-WINDOWS_ASSET_URL='https://github.com/Fei-Away/Codex-Dream-Skin/blob/main/windows/assets/'
+WINDOWS_ASSET_URL='https://github.com/CCDawn/Codex-Dynamic-Skin/blob/main/windows/assets/'
 WINDOWS_ASSET_TOKEN='__CODEX_DREAM_SKIN_WINDOWS_ASSET_URL__'
 for file in "$DOCS_TARGET"/*.md; do
   temporary="${file}.standalone"
@@ -83,7 +83,9 @@ for file in "$DOCS_TARGET"/*.md; do
     -e 's#macos/assets/#assets/#g' \
     -e 's#macos/NOTICE\.md#NOTICE.md#g' \
     -e "s#${WINDOWS_ASSET_URL}#${WINDOWS_ASSET_TOKEN}#g" \
+    -e "s#https://github.com/CCDawn/Codex-Dynamic-Skin/tree/main/windows/assets/#${WINDOWS_ASSET_TOKEN}#g" \
     -e "s#https://github.com/Fei-Away/Codex-Dream-Skin/tree/main/windows/assets/#${WINDOWS_ASSET_TOKEN}#g" \
+    -e "s#https://github.com/Fei-Away/Codex-Dream-Skin/blob/main/windows/assets/#${WINDOWS_ASSET_TOKEN}#g" \
     -e "s#windows/assets/#${WINDOWS_ASSET_URL}#g" \
     -e "s#${WINDOWS_ASSET_TOKEN}#${WINDOWS_ASSET_URL}#g" \
     "$file" > "$temporary"

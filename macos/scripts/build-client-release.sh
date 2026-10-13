@@ -30,7 +30,7 @@ if [ -f "$STANDALONE_README" ]; then
   temporary="${STANDALONE_README}.standalone"
   /usr/bin/sed \
     -e 's#\.\./docs/#docs/#g' \
-    -e 's#\.\./windows/#https://github.com/Fei-Away/Codex-Dream-Skin/tree/main/windows/#g' \
+    -e 's#\.\./windows/#https://github.com/CCDawn/Codex-Dynamic-Skin/tree/main/windows/#g' \
     "$STANDALONE_README" > "$temporary"
   /bin/mv "$temporary" "$STANDALONE_README"
 fi

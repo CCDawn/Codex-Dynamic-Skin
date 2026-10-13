@@ -327,7 +327,7 @@ STANDALONE_DOCS="$TMP/standalone-source-docs"
   "$STANDALONE_ROOT/docs/reference-background-prompt-guide.md"
 /usr/bin/grep -F -q 'assets/portal-hero.png' \
   "$STANDALONE_ROOT/docs/reference-background-prompt-guide.md"
-/usr/bin/grep -F -q 'https://github.com/Fei-Away/Codex-Dream-Skin/blob/main/windows/assets/theme.json' \
+/usr/bin/grep -F -q 'https://github.com/CCDawn/Codex-Dynamic-Skin/blob/main/windows/assets/theme.json' \
   "$STANDALONE_ROOT/docs/reference-background-prompt-guide.md"
 [ -f "$STANDALONE_ROOT/docs/images/hero-banner-red-white.png" ]
 [ ! -e "$STANDALONE_ROOT/docs/images/presets/arina-hashimoto-source.png" ]
@@ -349,7 +349,7 @@ STANDALONE_REPACK="$TMP/standalone-repack"
 "$STANDALONE_SOURCE/scripts/prepare-standalone-docs.sh" "$STANDALONE_REPACK"
 REPACK_GUIDE="$STANDALONE_REPACK/docs/reference-background-prompt-guide.md"
 /usr/bin/grep -F -q \
-  'https://github.com/Fei-Away/Codex-Dream-Skin/blob/main/windows/assets/theme.json' \
+  'https://github.com/CCDawn/Codex-Dynamic-Skin/blob/main/windows/assets/theme.json' \
   "$REPACK_GUIDE"
 if /usr/bin/grep -E -q 'tree/main/windows/assets|blob/main/https://' "$REPACK_GUIDE"; then
   printf 'Standalone prompt URL rewriting is not idempotent.\n' >&2
