@@ -16,6 +16,19 @@ while IFS= read -r file; do "$NODE" --check "$file" >/dev/null; done < <(
 # same source aborts at runtime under a UTF-8 locale with `set -u` and masks
 # the real failure behind a bogus "unbound variable" (#251).
 "$NODE" "$ROOT/tests/shell-braced-vars-before-cjk.test.mjs"
+# Root CI runs the portable Node regressions through the wildcard
+# `node --test macos/tests/*.test.mjs`; a local run-tests.sh invocation must
+# cover them too. Files this script already invokes inline further below are
+# not repeated here, and these run before the platform-bound fixtures so
+# partial runs on other hosts still execute them.
+"$NODE" --test \
+  "$ROOT/tests/update-version-source.test.mjs" \
+  "$ROOT/tests/discovery-backoff.test.mjs" \
+  "$ROOT/tests/renderer-verification.test.mjs" \
+  "$ROOT/tests/payload-template-integrity.test.mjs" \
+  "$ROOT/tests/localization-contract.test.mjs" \
+  "$ROOT/tests/write-theme-contract.test.mjs" \
+  "$ROOT/tests/release-workflow.test.mjs"
 "$NODE" --test "$ROOT/tests/restart-cancellation.test.mjs"
 
 ZH_COPY="$(DREAMSKIN_LANG=zh-CN /bin/bash -c '
@@ -103,7 +116,8 @@ UPDATE_JSON="$({
   if (value.currentVersion !== "v" + process.argv[2] || value.latestVersion !== "v9.8.7") process.exit(1);
   if (!value.updateAvailable) process.exit(1);
   if (value.releaseUrl !== "https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest") process.exit(1);
-' "$UPDATE_JSON" "$(/usr/bin/tr -d '[:space:]' < "$ROOT/VERSION")"
+' "$UPDATE_JSON" "$(/usr/bin/tr -d '[:space:]' < "$ROOT/VERSION")" \
+  || { printf 'update-check JSON assertion failed\n' >&2; exit 1; }
 UPDATE_REDIRECT_JSON="$({
   CODEX_DREAM_SKIN_TEST_REDIRECT_HEADERS_FILE="$ROOT/tests/fixtures/latest-release.headers" \
     "$ROOT/scripts/check-update-macos.sh" --json
@@ -113,7 +127,8 @@ UPDATE_REDIRECT_JSON="$({
   if (value.currentVersion !== "v" + process.argv[2] || value.latestVersion !== "v9.8.7") process.exit(1);
   if (!value.updateAvailable) process.exit(1);
   if (value.releaseUrl !== "https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest") process.exit(1);
-' "$UPDATE_REDIRECT_JSON" "$(/usr/bin/tr -d '[:space:]' < "$ROOT/VERSION")"
+' "$UPDATE_REDIRECT_JSON" "$(/usr/bin/tr -d '[:space:]' < "$ROOT/VERSION")" \
+  || { printf 'update-check redirect JSON assertion failed\n' >&2; exit 1; }
 "$NODE" --test "$ROOT/tests/update-fallback.test.mjs"
 if /usr/bin/grep -R -n -E --exclude-dir='.build' \
   --exclude-dir='.build-*' \
@@ -259,7 +274,8 @@ for preset in "$ROOT"/presets/preset-*/; do
   "$NODE" -e '
     const v = JSON.parse(process.argv[1]);
     if (!v.pass || v.themeId !== process.argv[2] || v.imageBytes < 1) process.exit(1);
-  ' "$PRESET_CHECK" "$PRESET_ID"
+  ' "$PRESET_CHECK" "$PRESET_ID" \
+    || { printf 'preset payload assertion failed for %s\n' "$PRESET_ID" >&2; exit 1; }
 done
 
 TMP="$(/usr/bin/mktemp -d /tmp/codex-dream-skin-tests.XXXXXX)"
@@ -418,7 +434,8 @@ run_signed_runtime_switch_test() {
     const value = JSON.parse(process.argv[1]);
     if (!/^[0-9a-f]{64}$/.test(value.contentFingerprint ?? "")) process.exit(1);
     process.stdout.write(value.contentFingerprint);
-  ' "$SNAPSHOT_OUTPUT")"
+  ' "$SNAPSHOT_OUTPUT")" \
+    || { printf 'snapshot fingerprint assertion failed\n' >&2; exit 1; }
   /usr/bin/cmp -s "$switch_state/theme/theme.json" \
     "$switch_state/.community-apply-test/active-before/theme.json"
   /usr/bin/cmp -s "$switch_state/theme/old.png" \
@@ -498,7 +515,8 @@ run_signed_runtime_switch_test() {
     const value = JSON.parse(process.argv[1]);
     if (!/^[0-9a-f]{64}$/.test(value.contentFingerprint ?? "")) process.exit(1);
     process.stdout.write(value.contentFingerprint);
-  ' "$FINGERPRINT_OUTPUT")"
+  ' "$FINGERPRINT_OUTPUT")" \
+    || { printf 'stage-theme fingerprint assertion failed\n' >&2; exit 1; }
   /bin/rm -rf "$FINGERPRINT_STAGE"
   if /usr/bin/env HOME="$switch_home" NODE="$NODE" \
     "$ROOT/scripts/switch-theme-macos.sh" --id preset-switch-fixture --no-apply \
@@ -511,7 +529,8 @@ run_signed_runtime_switch_test() {
     const fs = require("fs");
     const theme = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
     if (theme.id !== "old") process.exit(1);
-  ' "$switch_state/theme/theme.json"
+  ' "$switch_state/theme/theme.json" \
+    || { printf 'switch-theme stale-fingerprint preservation assertion failed\n' >&2; exit 1; }
   /usr/bin/env HOME="$switch_home" NODE="$NODE" \
     "$ROOT/scripts/switch-theme-macos.sh" --id preset-switch-fixture --no-apply \
     --expect-fingerprint "$EXPECTED_FINGERPRINT" >/dev/null
@@ -523,7 +542,8 @@ run_signed_runtime_switch_test() {
     const fs = require("fs");
     const theme = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
     if (theme.id !== "preset-switch-fixture" || theme.name !== "切换测试") process.exit(1);
-  ' "$switch_state/theme/theme.json"
+  ' "$switch_state/theme/theme.json" \
+    || { printf 'switch-theme applied theme assertion failed\n' >&2; exit 1; }
   [ -z "$(/usr/bin/find "$switch_state" -maxdepth 1 -name '.theme-switch.*' -print -quit)" ]
 }
 
@@ -691,7 +711,8 @@ STATUS_JSON="$(/usr/bin/env HOME="$STATUS_HOME" "$ROOT/scripts/status-dream-skin
 "$NODE" -e '
   const value = JSON.parse(process.argv[1]);
   if (value.session !== "stale" || value.injectorAlive !== false) process.exit(1);
-' "$STATUS_JSON"
+' "$STATUS_JSON" \
+  || { printf 'status staleness assertion (reused pid) failed\n' >&2; exit 1; }
 /bin/kill -TERM "$STATUS_PID" 2>/dev/null || true
 wait "$STATUS_PID" 2>/dev/null || true
 STATUS_PID=""
@@ -722,7 +743,8 @@ STATUS_JSON="$(/usr/bin/env HOME="$STATUS_HOME" "$ROOT/scripts/status-dream-skin
 "$NODE" -e '
   const value = JSON.parse(process.argv[1]);
   if (value.session !== "stale" || value.injectorAlive !== false) process.exit(1);
-' "$STATUS_JSON"
+' "$STATUS_JSON" \
+  || { printf 'status staleness assertion (near-prefix port) failed\n' >&2; exit 1; }
 /bin/kill -TERM "$STATUS_PID" 2>/dev/null || true
 wait "$STATUS_PID" 2>/dev/null || true
 STATUS_PID=""
@@ -861,14 +883,16 @@ PAYLOAD_JSON="$("$NODE" "$ROOT/scripts/injector.mjs" --check-payload --theme-dir
   if (theme.appearance !== "auto") process.exit(1);
   if (theme.art?.safeArea !== "auto" || theme.art?.taskMode !== "auto") process.exit(1);
   if (Object.hasOwn(theme.art, "focusX") || Object.hasOwn(theme.art, "focusY")) process.exit(1);
-' "$TMP/theme/theme.json"
+' "$TMP/theme/theme.json" \
+  || { printf 'write-theme auto defaults assertion failed\n' >&2; exit 1; }
 "$NODE" -e '
   const value = JSON.parse(process.argv[1]);
   if (!value.pass || value.themeName !== "测试主题" || value.imageBytes < 1) process.exit(1);
   if (value.artMetadata?.width !== 2168 || value.artMetadata?.height !== 725) process.exit(1);
   if (!value.artMetadata.wide || value.artMetadata.aspect !== "ultrawide") process.exit(1);
   if (!Number.isFinite(value.timings?.buildMs) || value.timings.buildMs < 0) process.exit(1);
-' "$PAYLOAD_JSON"
+' "$PAYLOAD_JSON" \
+  || { printf 'custom theme payload assertion failed\n' >&2; exit 1; }
 
 /bin/mkdir -p "$TMP/explicit-theme"
 /bin/cp "$ROOT/assets/portal-hero.png" "$TMP/explicit-theme/background.png"
@@ -886,7 +910,8 @@ EXPLICIT_PAYLOAD_JSON="$(
   if (theme.art?.focusX !== 0.12 || theme.art?.focusY !== 0.88) process.exit(1);
   if (theme.art?.safeArea !== "none" || theme.art?.taskMode !== "off") process.exit(1);
   if (!payload.pass || payload.themeName !== "显式自适应主题") process.exit(1);
-' "$TMP/explicit-theme/theme.json" "$EXPLICIT_PAYLOAD_JSON"
+' "$TMP/explicit-theme/theme.json" "$EXPLICIT_PAYLOAD_JSON" \
+  || { printf 'explicit adaptive theme assertion failed\n' >&2; exit 1; }
 
 assert_write_theme_rejected() {
   local label="$1"
@@ -1064,7 +1089,8 @@ BACKUP="$TMP/theme-backup.json"
   const backup = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
   if (backup.values.appearanceTheme !== `appearanceTheme = "system"`) process.exit(1);
   if (backup.values.appearanceDarkCodeThemeId !== `appearanceDarkCodeThemeId = "vscode-dark"`) process.exit(1);
-' "$BACKUP"
+' "$BACKUP" \
+  || { printf 'theme-config backup assertion failed\n' >&2; exit 1; }
 "$NODE" "$ROOT/scripts/theme-config.mjs" restore "$CONFIG" "$BACKUP" >/dev/null
 /usr/bin/cmp -s "$CONFIG" "$TMP/original.toml"
 
