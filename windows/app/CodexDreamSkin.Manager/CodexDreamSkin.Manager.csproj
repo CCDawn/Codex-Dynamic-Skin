@@ -32,7 +32,6 @@
     <EmbeddedResource Include="..\..\assets\theme-package-validator.mjs" LogicalName="DreamSkin.Engine.assets.theme-package-validator.mjs" />
     <EmbeddedResource Include="..\..\assets\theme-preferences.mjs" LogicalName="DreamSkin.Engine.assets.theme-preferences.mjs" />
     <EmbeddedResource Include="..\..\assets\theme.json" LogicalName="DreamSkin.Engine.assets.theme.json" />
-    <EmbeddedResource Include="..\..\assets\theme-manager\DreamSkin.ThemeManager.exe" LogicalName="DreamSkin.Engine.assets.theme-manager.DreamSkin.ThemeManager.exe" />
     <EmbeddedResource Include="..\..\scripts\common-windows.ps1" LogicalName="DreamSkin.Engine.scripts.common-windows.ps1" />
     <EmbeddedResource Include="..\..\scripts\config-utf8.ps1" LogicalName="DreamSkin.Engine.scripts.config-utf8.ps1" />
     <EmbeddedResource Include="..\..\scripts\image-metadata.mjs" LogicalName="DreamSkin.Engine.scripts.image-metadata.mjs" />
@@ -52,6 +51,5 @@
   <Target Name="ValidateBundledRuntime" BeforeTargets="BeforeBuild">
     <Error Condition="!Exists('$(NodeExe)')" Text="Set /p:NodeExe to a trusted Node.js 22+ node.exe." />
     <Error Condition="!Exists('$(NodeLicense)')" Text="Set /p:NodeLicense to the matching Node.js LICENSE file." />
-    <Error Condition="!Exists('..\..\assets\theme-manager\DreamSkin.ThemeManager.exe')" Text="Build the native theme manager first: node tools/build-theme-manager.mjs" />
   </Target>
 </Project>

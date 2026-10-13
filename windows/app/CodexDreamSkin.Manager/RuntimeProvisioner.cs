@@ -18,7 +18,6 @@ internal sealed class RuntimeProvisioner
       ["Engine.assets.theme-package-validator.mjs"] = @"payload\assets\theme-package-validator.mjs",
       ["Engine.assets.theme-preferences.mjs"] = @"payload\assets\theme-preferences.mjs",
       ["Engine.assets.theme.json"] = @"payload\assets\theme.json",
-      ["Engine.assets.theme-manager.DreamSkin.ThemeManager.exe"] = @"payload\assets\theme-manager\DreamSkin.ThemeManager.exe",
       ["Engine.scripts.common-windows.ps1"] = @"payload\scripts\common-windows.ps1",
       ["Engine.scripts.config-utf8.ps1"] = @"payload\scripts\config-utf8.ps1",
       ["Engine.scripts.image-metadata.mjs"] = @"payload\scripts\image-metadata.mjs",

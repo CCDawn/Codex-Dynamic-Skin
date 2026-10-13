@@ -99,10 +99,15 @@ if ($engineRequiredFiles.Count -lt 10) {
 }
 # Files the manager EXE intentionally does not embed: standalone CLI entries
 # and the machine-readable Safe CSS policy mirror are never invoked by the
-# manager's Start / Restore / ManagerCommand payload flow.
+# manager's Start / Restore / ManagerCommand payload flow. The native theme
+# manager EXE is installer-only payload as well: the manager never executes
+# it, and the tray/shortcut flow resolves it from the installer-provisioned
+# engine (%LOCALAPPDATA%\CodexDreamSkin\engine\assets\theme-manager\), which
+# is fully parallel to and never reads the manager's extracted runtime.
 $managerUnembeddedFiles = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 foreach ($managerUnembeddedFile in @(
   'assets\safe-css-policy.json',
+  'assets\theme-manager\DreamSkin.ThemeManager.exe',
   'scripts\apply-community-theme.ps1',
   'scripts\check-update.ps1',
   'scripts\validate-safe-css-file.mjs'
