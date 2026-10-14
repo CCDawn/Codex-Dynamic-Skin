@@ -38,10 +38,10 @@ contributors, diagnostics, and legacy deployments.
 # ~/.codex/codex-dream-skin-studio/scripts/customize-theme-macos.sh
 
 # 4) Start/re-apply, verify, or restore via Desktop:
-#    Codex Dream Skin.command
-#    Codex Dream Skin - Customize.command
-#    Codex Dream Skin - Verify.command
-#    Codex Dream Skin - Restore.command
+#    Codex Dynamic Skin.command
+#    Codex Dynamic Skin - Customize.command
+#    Codex Dynamic Skin - Verify.command
+#    Codex Dynamic Skin - Restore.command
 
 # 5) Legacy only: install the old SwiftBar menu (do not enable it beside the native app)
 ./Install\ Menu\ Bar.command

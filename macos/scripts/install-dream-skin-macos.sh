@@ -135,14 +135,14 @@ if [ "$CREATE_LAUNCHERS" = "true" ]; then
   customize_script="$(shell_quote "$SCRIPT_DIR/customize-theme-macos.sh")"
   verify_script="$(shell_quote "$SCRIPT_DIR/verify-dream-skin-macos.sh")"
   restore_script="$(shell_quote "$SCRIPT_DIR/restore-dream-skin-macos.sh")"
-  screenshot="$(shell_quote "$HOME/Desktop/Codex Dream Skin Verification.png")"
-  write_launcher "$HOME/Desktop/Codex Dream Skin.command" "exec $start_script --port $PORT --prompt-restart"
-  write_launcher "$HOME/Desktop/Codex Dream Skin - Customize.command" "exec $customize_script"
-  write_launcher "$HOME/Desktop/Codex Dream Skin - Verify.command" "$verify_script --screenshot $screenshot && /usr/bin/open $screenshot"
-  write_launcher "$HOME/Desktop/Codex Dream Skin - Restore.command" "exec $restore_script --restore-base-theme --restart-codex"
+  screenshot="$(shell_quote "$HOME/Desktop/Codex Dynamic Skin Verification.png")"
+  write_launcher "$HOME/Desktop/Codex Dynamic Skin.command" "exec $start_script --port $PORT --prompt-restart"
+  write_launcher "$HOME/Desktop/Codex Dynamic Skin - Customize.command" "exec $customize_script"
+  write_launcher "$HOME/Desktop/Codex Dynamic Skin - Verify.command" "$verify_script --screenshot $screenshot && /usr/bin/open $screenshot"
+  write_launcher "$HOME/Desktop/Codex Dynamic Skin - Restore.command" "exec $restore_script --restore-base-theme --restart-codex"
 fi
 
-printf 'Codex Dream Skin Studio %s installed at %s for Codex %s using its signed Node.js %s.\n' \
+printf 'Codex Dynamic Skin Studio %s installed at %s for Codex %s using its signed Node.js %s.\n' \
   "$SKIN_VERSION" "$PROJECT_ROOT" "$CODEX_VERSION" "$NODE_VERSION"
 printf 'Use the Desktop launchers to customize, start, verify, or restore the official appearance.\n'
 printf 'Bundled presets are ready in your theme library — pick one from the menu bar (已保存的主题) or switch-theme.\n'

@@ -14,7 +14,7 @@ EXTRACT_ROOT=""
 PROBE_COUNT_FILE=""
 
 fail_extract() {
-  printf 'ChatGPT Dream Skin: %s\n' "$*" >&2
+  printf 'Codex 动态壁纸: %s\n' "$*" >&2
   exit 1
 }
 

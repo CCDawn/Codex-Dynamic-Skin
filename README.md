@@ -93,7 +93,7 @@
 在仓库的 [`macos/`](./macos/) 目录双击：
 
 ```text
-Install Codex Dream Skin.command
+Install Codex Dynamic Skin.command
 ```
 
 也可在终端执行：

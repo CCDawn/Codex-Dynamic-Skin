@@ -1,20 +1,20 @@
 ---
 name: codex-dream-skin-studio
-description: Install, customize, launch, verify, repair, update, or restore Codex Dream Skin Studio on macOS. Use when a user wants to turn a personal image into one continuous full-window Codex wallpaper with adaptive readability layers while preserving the native interface, or needs safe CDP theme troubleshooting and rollback.
+description: Install, customize, launch, verify, repair, update, or restore Codex Dynamic Skin Studio on macOS. Use when a user wants to turn a personal image into one continuous full-window Codex wallpaper with adaptive readability layers while preserving the native interface, or needs safe CDP theme troubleshooting and rollback.
 compatibility: macOS, official Codex Desktop app, signed bundled Node.js 20 or newer
 ---
 
-# Codex Dream Skin Studio
+# Codex Dynamic Skin Studio
 
 This file is an optional Codex capability entry. The delivery is a complete standalone project; users do not need to install it as a Skill.
 
 ## Workflow
 
-1. Run `Install Codex Dream Skin.command` from the complete project folder.
-2. Run `Customize Codex Dream Skin.command`, choose an image in Finder, and enter a theme name.
+1. Run `Install Codex Dynamic Skin.command` from the complete project folder.
+2. Run `Customize Codex Dynamic Skin.command`, choose an image in Finder, and enter a theme name.
 3. To add a complete downloaded pack, use the native menu's “导入主题 ZIP…”. Accept ordinary `.zip` only. Every new official Studio pack contains `manifest.json`, non-empty `theme.json`, non-empty locally validated `theme.css`, exactly one registered background, and optional license/signature files; the trusted local simplified format contains exactly `theme.json`, `theme.css`, and its referenced image. Import into saved themes without changing the active theme. A manually extracted complete three-file directory may instead be moved into the saved themes folder. Previously saved legacy themes without CSS remain switchable but inject no extra CSS.
-4. Verify the live result with `Verify Codex Dream Skin.command`. A pass requires a visible native sidebar and composer, no horizontal overflow, non-interactive decoration, and—on the home route—a continuous wallpaper with live native heading, project controls, and any suggestion cards exposed by the current Codex version.
-5. Restore the official appearance with `Restore Codex Dream Skin.command`.
+4. Verify the live result with `Verify Codex Dynamic Skin.command`. A pass requires a visible native sidebar and composer, no horizontal overflow, non-interactive decoration, and—on the home route—a continuous wallpaper with live native heading, project controls, and any suggestion cards exposed by the current Codex version.
+5. Restore the official appearance with `Restore Codex Dynamic Skin.command`.
 
 ## Guardrails
 

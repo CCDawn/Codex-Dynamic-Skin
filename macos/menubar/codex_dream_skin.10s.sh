@@ -116,9 +116,9 @@ if [ -n "$OPERATION_MESSAGE_MENU_LINE" ]; then
   /usr/bin/printf '%s\n' "$OPERATION_MESSAGE_MENU_LINE | color=$OPERATION_COLOR"
 fi
 if [ "$CODEX_LINE" = "true" ]; then
-  echo "ChatGPT: 已打开 | color=#667085"
+  echo "Codex: 已打开 | color=#667085"
 else
-  echo "ChatGPT: 未打开 | color=#b54708"
+  echo "Codex: 未打开 | color=#b54708"
 fi
 
 echo "---"

@@ -47,10 +47,10 @@
    验证器必须真实返回 `pass: true`。随后还要检查一个正常任务页面，确认背景存在且正文、菜单、侧栏和输入框仍清晰可用，并保存任务页截图。
 
 8. 检查桌面已存在以下四个入口：
-   - `Codex Dream Skin.command`
-   - `Codex Dream Skin - Customize.command`
-   - `Codex Dream Skin - Verify.command`
-   - `Codex Dream Skin - Restore.command`
+   - `Codex Dynamic Skin.command`
+   - `Codex Dynamic Skin - Customize.command`
+   - `Codex Dynamic Skin - Verify.command`
+   - `Codex Dynamic Skin - Restore.command`
 
 9. 如果失败，读取 `~/Library/Application Support/CodexDreamSkinStudio/` 下的日志并继续修复。不得降低代码签名、回环端口归属、PID 身份、原生结构或截图验证标准；不得用“预计重启后生效”“应该完成”等措辞代替验收。
 

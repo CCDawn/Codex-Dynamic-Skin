@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 PACKAGE_ROOT="$ROOT/menubar-app"
 VERSION="$(/usr/bin/tr -d '[:space:]' < "$ROOT/VERSION")"
-OUTPUT_APP="$ROOT/release/Codex Dream Skin.app"
+OUTPUT_APP="$ROOT/release/Codex Dynamic Skin.app"
 SKIP_TESTS="false"
 
 while [ "$#" -gt 0 ]; do
@@ -67,7 +67,7 @@ for arch in "${ARCHS[@]}"; do
   BINARIES+=("$TMP/CodexDreamSkinMenuBar-$arch")
 done
 
-APP="$TMP/Codex Dream Skin.app"
+APP="$TMP/Codex Dynamic Skin.app"
 CONTENTS="$APP/Contents"
 MACOS_DIR="$CONTENTS/MacOS"
 RESOURCES="$CONTENTS/Resources"

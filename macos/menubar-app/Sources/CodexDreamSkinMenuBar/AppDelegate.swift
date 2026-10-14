@@ -227,9 +227,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
       return true
     }
     mark.isTemplate = true
-    mark.accessibilityDescription = "Codex Dream Skin"
+    mark.accessibilityDescription = "Codex Dynamic Skin"
     button.image = mark
-    button.toolTip = "Codex Dream Skin"
+    button.toolTip = "Codex Dynamic Skin"
     rebuildMenu()
   }
 
@@ -716,7 +716,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
       if result.succeeded,
          let parsed = StatusSnapshot(jsonData: Data(result.output.utf8)) {
         self.snapshot = parsed
-        self.statusItem.button?.toolTip = "Codex Dream Skin · \(self.copy.statusTitle(session: parsed.session, operation: parsed.operation))"
+        self.statusItem.button?.toolTip = "Codex Dynamic Skin · \(self.copy.statusTitle(session: parsed.session, operation: parsed.operation))"
         self.statusItem.button?.appearsDisabled = parsed.session == "unknown" || parsed.session == "stale"
         self.rebuildMenu()
       }
@@ -863,7 +863,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
 
       客户端会从固定官方 API 下载，核对完整哈希，并重新执行 ZIP、清单与 Safe CSS 校验。导入和应用前不会运行主题中的任意命令。
 
-      如果 ChatGPT 当前没有安全调试连接，应用时会重启 ChatGPT；请先保存未发送的输入。
+      如果 Codex 当前没有安全调试连接，应用时会重启 Codex；请先保存未发送的输入。
       """
     } else {
       alert.messageText = "Apply “\(name)” from DreamSkin.cc?"
@@ -874,7 +874,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
 
       The client downloads from the fixed official API, verifies the full hash, and reruns the ZIP, manifest, and Safe CSS checks. It does not execute commands from the theme before importing or applying it.
 
-      ChatGPT may restart if no safe debug connection is active. Save any unsent input first.
+      Codex may restart if no safe debug connection is active. Save any unsent input first.
       """
     }
     alert.addButton(withTitle: copy.resolvedLanguage == .chinese ? "下载并应用" : "Download and apply")
@@ -1402,10 +1402,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, UNUser
   private func postUpdateAvailableNotification(version: String, releaseURL: String) {
     let content = UNMutableNotificationContent()
     if copy.resolvedLanguage == .chinese {
-      content.title = "Codex Dream Skin 有新版本"
+      content.title = "Codex 动态壁纸有新版本"
       content.body = "\(version) 已发布，点按前往下载页面。"
     } else {
-      content.title = "Codex Dream Skin update available"
+      content.title = "Codex Dynamic Skin update available"
       content.body = "\(version) is available. Click to open the download page."
     }
     content.sound = .default

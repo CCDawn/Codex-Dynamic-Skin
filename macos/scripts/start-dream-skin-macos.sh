@@ -28,7 +28,7 @@ record_start_exit() {
   write_operation_state failed "$(dreamskin_text apply_unconfirmed)" "${OPERATION_TOKEN:-}" 2>/dev/null || true
   finish_client_operation "${PORT:-9341}" error "$(dreamskin_text apply_unconfirmed)" \
     "$OPERATION_TOKEN" 1500 >/dev/null 2>&1 || true
-  printf 'ChatGPT Dream Skin: start failed at line %s (exit %s). See %s\n' "$line" "$code" "$START_ERROR_LOG" >&2
+  printf 'Codex 动态壁纸: start failed at line %s (exit %s). See %s\n' "$line" "$code" "$START_ERROR_LOG" >&2
 }
 trap 'code=$?; record_start_exit "$code" "$LINENO"' EXIT
 
@@ -98,7 +98,7 @@ on run argv
   set promptText to item 1 of argv
   set okLabel to item 2 of argv
   set cancelLabel to item 3 of argv
-  display dialog promptText buttons {cancelLabel, okLabel} default button okLabel cancel button cancelLabel with title "ChatGPT Dream Skin"
+  display dialog promptText buttons {cancelLabel, okLabel} default button okLabel cancel button cancelLabel with title "Codex 动态壁纸"
 end run
 APPLESCRIPT
     then
@@ -205,4 +205,4 @@ mark_state_active || fail "Could not commit the verified active skin state."
 write_operation_state success "$(dreamskin_text skin_applied)" "$OPERATION_TOKEN" \
   || fail "Could not publish the completed apply state."
 OPERATION_FINISHED="true"
-printf 'ChatGPT Dream Skin %s is active on loopback port %s.\n' "$SKIN_VERSION" "$PORT"
+printf 'Codex 动态壁纸 %s is active on loopback port %s.\n' "$SKIN_VERSION" "$PORT"

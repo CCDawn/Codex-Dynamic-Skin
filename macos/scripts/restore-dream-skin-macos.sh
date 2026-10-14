@@ -84,7 +84,13 @@ fi
 clear_operation_state
 /bin/rm -f "$OPERATION_ACK_PATH"
 if [ "$UNINSTALL" = "true" ]; then
+  # Clean both launcher generations: installs up to v1.7.2 wrote the old
+  # "Codex Dream Skin*" names, newer installs write "Codex Dynamic Skin*".
   for launcher in \
+    "$HOME/Desktop/Codex Dynamic Skin.command" \
+    "$HOME/Desktop/Codex Dynamic Skin - Customize.command" \
+    "$HOME/Desktop/Codex Dynamic Skin - Verify.command" \
+    "$HOME/Desktop/Codex Dynamic Skin - Restore.command" \
     "$HOME/Desktop/Codex Dream Skin.command" \
     "$HOME/Desktop/Codex Dream Skin - Customize.command" \
     "$HOME/Desktop/Codex Dream Skin - Verify.command" \
@@ -96,4 +102,4 @@ if [ "$UNINSTALL" = "true" ]; then
   done
 fi
 
-printf 'ChatGPT Dream Skin was removed and the requested macOS restore actions completed successfully.\n'
+printf 'Codex 动态壁纸 was removed and the requested macOS restore actions completed successfully.\n'

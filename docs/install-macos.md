@@ -8,11 +8,11 @@
 
 1. 在 GitHub 的 [Releases](https://github.com/CCDawn/Codex-Dynamic-Skin/releases) 下载最新的
    `CodexDreamSkin-vX.Y.Z.dmg`。`SHA256SUMS.txt` 是可选的完整性校验文件。
-2. 双击 DMG，把 **Codex Dream Skin.app** 拖到 **Applications（应用程序）**。
+2. 双击 DMG，把 **Codex Dynamic Skin.app** 拖到 **Applications（应用程序）**。
 3. 第一次打开时，macOS 可能提示应用来自无法验证的开发者。这是因为公开发行包目前没有
    Apple Developer ID 签名，不代表安装包需要执行脚本。
 4. 如果提示框没有“打开”，点击“完成”，然后打开 **系统设置 → 隐私与安全性**。在“安全性”区域
-   找到“Codex Dream Skin 已被阻止使用”一行，点击 **仍要打开**，输入登录密码并确认。
+   找到“Codex Dynamic Skin 已被阻止使用”一行，点击 **仍要打开**，输入登录密码并确认。
 5. 应用启动后会在用户目录部署或升级主题引擎。若 Codex 正在运行，按提示先退出，再从菜单选择
    “安装 / 升级引擎”。
    完成后，菜单栏右上角会出现 Dream Skin 图标。
@@ -46,7 +46,7 @@
 ## 从网站一键换肤
 
 安装支持一键换肤的客户端版本后，DreamSkin.cc 只会在已经审核并通过新版主题包校验的主题上显示
-“一键应用到客户端”。点击后，macOS 会把 `dreamskin://` 请求交给 **Codex Dream Skin.app**；客户端会先显示
+“一键应用到客户端”。点击后，macOS 会把 `dreamskin://` 请求交给 **Codex Dynamic Skin.app**；客户端会先显示
 主题名称、作者、包大小和 SHA-256 摘要，只有你明确确认后才继续。
 
 一键换肤开始前，当前皮肤必须已处于可验证的 **Skin ON** 状态，且“已选主题”和“已应用主题”一致；否则客户端会
@@ -75,6 +75,10 @@ Codex/ChatGPT 界面报告目标主题已经渲染。第一次切换前，客户
 3. 打开新 DMG，把新应用拖入 Applications，并选择替换。
 4. 再次打开应用；现有主题、图片和状态会保留。
 
+从 v1.7.2 及更早版本升级的用户请注意：新版本应用改名为 **Codex Dynamic Skin.app**
+（bundle id 不变），覆盖安装后旧版 `Codex Dream Skin.app` 会与新应用并存，请手动把
+旧应用移到废纸篓，只保留新版。
+
 通常同一台 Mac 在第一次允许后不会每次启动都询问。但每个新下载的、未签名的应用副本都可能
 再次触发 Gatekeeper；这是 macOS 按文件和来源作出的安全判断，项目无法保证所有系统版本都只
 提示一次。若出现提示，重复上面的“隐私与安全性 → 仍要打开”即可，不需要重新安装引擎。
@@ -87,14 +91,14 @@ Codex/ChatGPT 界面报告目标主题已经渲染。第一次切换前，客户
 ## 卸载
 
 先从菜单栏选择“恢复原状并卸载”，让 Codex 恢复官方外观并关闭 CDP 会话；然后把
-`/Applications/Codex Dream Skin.app` 移到废纸篓。若要删除用户主题和图片，再手动删除
+`/Applications/Codex Dynamic Skin.app` 移到废纸篓。若要删除用户主题和图片，再手动删除
 `~/Library/Application Support/CodexDreamSkinStudio`；这一步不可恢复，建议先备份自定义图片。
 
 ## 常见问题
 
 ### “仍要打开”没有出现
 
-确认你打开的是 `/Applications/Codex Dream Skin.app`，并先实际双击一次使 macOS 记录拦截结果。
+确认你打开的是 `/Applications/Codex Dynamic Skin.app`，并先实际双击一次使 macOS 记录拦截结果。
 “仍要打开”按钮通常只在尝试启动后的一段时间内显示；仍没有按钮时，再次尝试打开应用，然后重新
 进入“隐私与安全性”。不要关闭系统安全功能，也不要从网上复制未经核对的终端命令。
 

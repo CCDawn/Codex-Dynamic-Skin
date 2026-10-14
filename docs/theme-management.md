@@ -3,7 +3,7 @@
 ## 使用入口
 
 - macOS：菜单栏 → **主题**。背景透明度滑块和“跟随主题”作用于当前主题；**删除已保存主题…**列出本机主题。
-- Windows：桌面／开始菜单 → **Codex Dream Skin**，或双击托盘图标。原生窗口提供当前主题透明度和已保存主题删除；切换、导入主题仍使用现有托盘。
+- Windows：桌面／开始菜单 → **Codex 动态壁纸**，或双击托盘图标。原生窗口提供当前主题透明度和已保存主题删除；切换、导入主题仍使用现有托盘。
 
 透明度范围为 0–100%；0% 不透明，100% 全透明。只改变主题背景，文字和图标不随之变淡。优先级为用户按主题保存的设置 → 作者明确的 alpha → 默认 30%。点“跟随主题”清除当前主题的用户覆盖。主题包不会被改写。
 
@@ -12,7 +12,7 @@
 ## English
 
 On macOS, open the menu bar **Theme** menu for background transparency and
-**Delete saved theme…**. On Windows, open **Codex Dream Skin** from the desktop or Start Menu, or double-click
+**Delete saved theme…**. On Windows, open **Codex 动态壁纸** from the desktop or Start Menu, or double-click
 the tray icon. The existing tray still handles imports and theme
 switching.
 

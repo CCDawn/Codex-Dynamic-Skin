@@ -193,10 +193,10 @@ write_operation_state paused "$(dreamskin_text skin_paused)" "$OPERATION_TOKEN" 
 trap - EXIT
 
 if [ "$REMOVED" = "true" ]; then
-  printf 'ChatGPT Dream Skin paused (skin removed; control connection %s). Port %s may still be in debug mode.\n' \
+  printf 'Codex 动态壁纸 paused (skin removed; control connection %s). Port %s may still be in debug mode.\n' \
     "$([ "$KEEP_CONTROL_WATCHER" = "true" ] && printf retained || printf unavailable)" "$PORT"
 elif codex_is_running; then
-  printf 'ChatGPT Dream Skin paused (injector stopped). Live remove skipped: CDP on port %s not verified.\n' "$PORT"
+  printf 'Codex 动态壁纸 paused (injector stopped). Live remove skipped: CDP on port %s not verified.\n' "$PORT"
 else
-  printf 'ChatGPT Dream Skin paused (ChatGPT is not running).\n'
+  printf 'Codex 动态壁纸 paused (Codex is not running).\n'
 fi

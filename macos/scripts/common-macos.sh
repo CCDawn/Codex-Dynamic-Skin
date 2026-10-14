@@ -5,7 +5,7 @@ set -euo pipefail
 if [ -z "${HOME:-}" ]; then
   CURRENT_USER="$(/usr/bin/id -un)"
   HOME="$(/usr/bin/dscl . -read "/Users/$CURRENT_USER" NFSHomeDirectory 2>/dev/null | /usr/bin/awk '{print $2}')"
-  [ -n "$HOME" ] || { printf 'ChatGPT Dream Skin: could not resolve the current macOS home directory.\n' >&2; exit 1; }
+  [ -n "$HOME" ] || { printf 'Codex 动态壁纸: could not resolve the current macOS home directory.\n' >&2; exit 1; }
   export HOME
 fi
 
@@ -42,7 +42,7 @@ fail() {
     /bin/mkdir -p "$STATE_ROOT" 2>/dev/null || true
     printf '%s %s\n' "$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')" "$message" >> "$START_ERROR_LOG" 2>/dev/null || true
   fi
-  printf 'ChatGPT Dream Skin: %s\n' "$message" >&2
+  printf 'Codex 动态壁纸: %s\n' "$message" >&2
   exit 1
 }
 
@@ -50,7 +50,7 @@ notify_user() {
   local message="$*"
   /usr/bin/osascript - "$message" <<'APPLESCRIPT' >/dev/null 2>&1 || true
 on run argv
-  display notification (item 1 of argv) with title "ChatGPT Dream Skin"
+  display notification (item 1 of argv) with title "Codex 动态壁纸"
 end run
 APPLESCRIPT
 }
@@ -59,7 +59,7 @@ alert_user() {
   local message="$*"
   /usr/bin/osascript - "$message" <<'APPLESCRIPT' >/dev/null 2>&1 || true
 on run argv
-  display alert "ChatGPT Dream Skin" message (item 1 of argv)
+  display alert "Codex 动态壁纸" message (item 1 of argv)
 end run
 APPLESCRIPT
 }

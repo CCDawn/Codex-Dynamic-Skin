@@ -22,7 +22,7 @@ progress() {
 notify_progress() {
   /usr/bin/osascript - "$*" >/dev/null 2>&1 <<'APPLESCRIPT' &
 on run argv
-  display notification (item 1 of argv) with title "ChatGPT Dream Skin"
+  display notification (item 1 of argv) with title "Codex 动态壁纸"
 end run
 APPLESCRIPT
 }
@@ -30,7 +30,7 @@ APPLESCRIPT
 alert() {
   /usr/bin/osascript - "$1" >/dev/null 2>&1 <<'APPLESCRIPT' || true
 on run argv
-  display alert "ChatGPT Dream Skin" message (item 1 of argv)
+  display alert "Codex 动态壁纸" message (item 1 of argv)
 end run
 APPLESCRIPT
 }
@@ -44,7 +44,7 @@ on run argv
   set promptText to item 1 of argv
   set okLabel to item 2 of argv
   set cancelLabel to item 3 of argv
-  display dialog promptText buttons {cancelLabel, okLabel} default button okLabel cancel button cancelLabel with title "ChatGPT Dream Skin"
+  display dialog promptText buttons {cancelLabel, okLabel} default button okLabel cancel button cancelLabel with title "Codex 动态壁纸"
 end run
 APPLESCRIPT
 }
@@ -78,31 +78,31 @@ fi
 
 if [ "$(dreamskin_language)" = "zh" ]; then
   if [ "$CHEAP_RUNNING" = "false" ]; then
-    PROMPT="打开 ChatGPT 并应用「${THEME_NAME}」？
+    PROMPT="打开 Codex 并应用「${THEME_NAME}」？
 首次启动通常需要 10–30 秒。"
   elif [ "$SESSION" = "active" ]; then
     PROMPT="重新应用「${THEME_NAME}」？
-ChatGPT 无需重启，适合界面未更新时使用。"
+Codex 无需重启，适合界面未更新时使用。"
   elif [ "$SESSION" = "stale" ] || [ "$SESSION" = "unknown" ]; then
     PROMPT="修复连接并应用「${THEME_NAME}」？
-ChatGPT 无需重启，通常几秒完成。"
+Codex 无需重启，通常几秒完成。"
   else
-    PROMPT="将「${THEME_NAME}」应用到 ChatGPT？
-ChatGPT 无需重启，通常几秒完成。"
+    PROMPT="将「${THEME_NAME}」应用到 Codex？
+Codex 无需重启，通常几秒完成。"
   fi
 else
   if [ "$CHEAP_RUNNING" = "false" ]; then
-    PROMPT="Open ChatGPT and apply “${THEME_NAME}”?
+    PROMPT="Open Codex and apply “${THEME_NAME}”?
 The first launch usually takes 10–30 seconds."
   elif [ "$SESSION" = "active" ]; then
     PROMPT="Reapply “${THEME_NAME}”?
-ChatGPT does not need to restart. Use this when the interface did not update."
+Codex does not need to restart. Use this when the interface did not update."
   elif [ "$SESSION" = "stale" ] || [ "$SESSION" = "unknown" ]; then
     PROMPT="Repair the connection and apply “${THEME_NAME}”?
-ChatGPT does not need to restart; this usually takes a few seconds."
+Codex does not need to restart; this usually takes a few seconds."
   else
-    PROMPT="Apply “${THEME_NAME}” to ChatGPT?
-ChatGPT does not need to restart; this usually takes a few seconds."
+    PROMPT="Apply “${THEME_NAME}” to Codex?
+Codex does not need to restart; this usually takes a few seconds."
   fi
 fi
 if [ "$CHEAP_RUNNING" = "false" ]; then

@@ -74,7 +74,7 @@ Codex-Dynamic-Skin/
 |------|------|
 | 引擎 | `~/.codex/codex-dream-skin-studio` |
 | 状态 / 主题 | `~/Library/Application Support/CodexDreamSkinStudio` |
-| 桌面启动器 | `~/Desktop/Codex Dream Skin*.command` → 指向上面的引擎脚本 |
+| 桌面启动器 | `~/Desktop/Codex Dynamic Skin*.command` → 指向上面的引擎脚本 |
 
 Windows 状态目录见 `platforms.md`（`%LOCALAPPDATA%\CodexDreamSkin`）。
 

@@ -18,7 +18,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 fail() {
-  printf 'Codex Dream Skin update check: %s\n' "$*" >&2
+  printf 'Codex Dynamic Skin update check: %s\n' "$*" >&2
   exit 1
 }
 
@@ -141,7 +141,7 @@ on run argv
   set promptText to item 1 of argv
   set laterLabel to item 2 of argv
   set downloadLabel to item 3 of argv
-  display dialog promptText buttons {laterLabel, downloadLabel} default button downloadLabel cancel button laterLabel with title "Codex Dream Skin"
+  display dialog promptText buttons {laterLabel, downloadLabel} default button downloadLabel cancel button laterLabel with title "Codex Dynamic Skin"
 end run
 APPLESCRIPT
     then
@@ -151,11 +151,11 @@ APPLESCRIPT
     if [ "$(dreamskin_language)" = "zh" ]; then
       CURRENT_MESSAGE="当前已是最新版本 v${CURRENT_VERSION}"
     else
-      CURRENT_MESSAGE="Codex Dream Skin v${CURRENT_VERSION} is up to date."
+      CURRENT_MESSAGE="Codex Dynamic Skin v${CURRENT_VERSION} is up to date."
     fi
     /usr/bin/osascript - "$CURRENT_MESSAGE" "$(dreamskin_text ok 2>/dev/null || /usr/bin/printf OK)" <<'APPLESCRIPT' >/dev/null
 on run argv
-  display alert "Codex Dream Skin" message (item 1 of argv) buttons {(item 2 of argv)}
+  display alert "Codex Dynamic Skin" message (item 1 of argv) buttons {(item 2 of argv)}
 end run
 APPLESCRIPT
   fi

@@ -93,7 +93,7 @@ The right-side slider controls the relationship between the theme veil and the w
 Open [`macos/`](./macos/) and double-click:
 
 ```text
-Install Codex Dream Skin.command
+Install Codex Dynamic Skin.command
 ```
 
 Or run:
