@@ -24,6 +24,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="..\..\assets\compat-profile-client.mjs" LogicalName="DreamSkin.Engine.assets.compat-profile-client.mjs" />
     <EmbeddedResource Include="..\..\assets\dream-reference.jpg" LogicalName="DreamSkin.Engine.assets.dream-reference.jpg" />
     <EmbeddedResource Include="..\..\assets\dream-skin.css" LogicalName="DreamSkin.Engine.assets.dream-skin.css" />
     <EmbeddedResource Include="..\..\assets\renderer-inject.js" LogicalName="DreamSkin.Engine.assets.renderer-inject.js" />

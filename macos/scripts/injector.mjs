@@ -13,6 +13,13 @@ import {
   normalizeThemeText,
 } from "../assets/theme-package-validator.mjs";
 import { decodeAndValidateSafeCss } from "../assets/safe-css-validator.mjs";
+import {
+  applyCompatOverridesToTemplate,
+  compatProfileCachePath,
+  COMPAT_PROFILE_PUBLIC_KEYS,
+  COMPAT_PROFILE_URL,
+  fetchCompatProfile,
+} from "../assets/compat-profile-client.mjs";
 
 const execFileAsync = promisify(execFile);
 const scriptPath = fileURLToPath(import.meta.url);
@@ -49,6 +56,41 @@ const SKIN_VERSION = "1.7.1";
 // literal `const SKIN_VERSION = "...";` line, so the export stays a separate
 // statement rather than an inline `export const`.
 export { SKIN_VERSION };
+// --- Remote compat profile (dreamskin-compat-profile/1) ----------------------
+// The signed profile fetch runs asynchronously and never blocks skinning:
+// until it lands — and whenever it fails closed — the built-in contract from
+// assets/selectors.json serves every session. A verified result only replaces
+// selector strings of keys already present in SELECTOR_MAP (CDP probes stay in
+// sync with the renderer contract) and is folded into the NEXT payload build;
+// already-injected renderers are deliberately not retro-patched. The fetch is
+// started from the main entry for payload-building modes only, so unit tests
+// importing this module never touch the network and installer-facing
+// --check-payload runs stay deterministic and offline. DREAMSKIN_COMPAT_PROFILE=0
+// disables the fetch entirely. Status goes to stderr: stdout is parsed as JSON
+// by shell tooling.
+const COMPAT_PROFILE_FETCH_MODES = new Set(["watch", "once", "verify"]);
+let compatSelectorOverrides = null;
+let compatProfileReady = Promise.resolve(false);
+function startCompatProfileFetch() {
+  if (process.env.DREAMSKIN_COMPAT_PROFILE === "0") return;
+  compatProfileReady = fetchCompatProfile({
+    url: COMPAT_PROFILE_URL,
+    publicKeys: COMPAT_PROFILE_PUBLIC_KEYS,
+    cachePath: compatProfileCachePath(),
+    clientVersion: SKIN_VERSION,
+    localContract: SELECTOR_MAP,
+    onStatus: (reason) => console.error(`[dream-skin] compat profile not applied: ${reason}`),
+  }).then((result) => {
+    if (!result) return false;
+    compatSelectorOverrides = result.overrides;
+    for (const [key, selector] of Object.entries(result.overrides)) {
+      SELECTOR_MAP.set(key, selector);
+    }
+    console.error(`[dream-skin] compat profile revision ${result.profile.revision} active ` +
+      `(${Object.keys(result.overrides).length} selector overrides)`);
+    return true;
+  }).catch(() => false);
+}
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 const CDP_ID_PATTERN = /^[A-Za-z0-9._-]{1,200}$/;
 const MAX_ART_BYTES = 10 * 1024 * 1024;
@@ -841,7 +883,9 @@ export async function loadPayload(themeDir, preferenceOptions = {}) {
   // replacement would still interpret `$$`, `$&`, `` $` `` and `$'` inside the
   // JSON, so a theme name that legitimately contains `$` could silently corrupt
   // or truncate the payload. Function replacements are inserted verbatim.
-  const payload = template
+  // Verified compat-profile overrides (if any landed before this build) are
+  // folded in first via the same function-replacement discipline.
+  const payload = applyCompatOverridesToTemplate(template, compatSelectorOverrides)
     .replace("__DREAM_SKIN_CSS_JSON__", () => JSON.stringify(combinedCss))
     .replace("__DREAM_SKIN_ART_JSON__", () => JSON.stringify(artDataUrl))
     .replace("__DREAM_SKIN_THEME_JSON__", () => JSON.stringify(theme))
@@ -1675,6 +1719,19 @@ async function watchOperationState(statePath, onState) {
 
 async function runWatch(options) {
   let current = await loadPayload(options.themeDir);
+  // Compat overrides may land after the first payload build. Restage the
+  // payload so future sessions (new renderers, reloads) use the merged
+  // contract; sessions already injected keep what they have by design.
+  void compatProfileReady.then(async (applied) => {
+    if (!applied) return;
+    try {
+      const restaged = await loadPayload(options.themeDir);
+      if (!stopping) current = restaged;
+    } catch {
+      // Keep serving the previous payload; the watcher's own reload path owns
+      // surfacing theme errors.
+    }
+  });
   const sessions = new Map();
   const rejected = new Set();
   let stopping = false;
@@ -2218,6 +2275,7 @@ async function runOneShotAndExit(options) {
 if (path.resolve(process.argv[1] || "") === path.resolve(scriptPath)) {
   try {
     const options = parseArgs(process.argv.slice(2));
+    if (COMPAT_PROFILE_FETCH_MODES.has(options.mode)) startCompatProfileFetch();
     if (options.mode === "check") {
       const loaded = await loadPayload(options.themeDir);
       // loadPayload already fails closed, but every installer, importer and

@@ -61,8 +61,18 @@ function compileRuntime(source, expandedCss) {
   if (source.split(predicateToken).length - 1 !== 1) {
     throw new Error(`runtime/renderer-inject.js must contain exactly one ${predicateToken} token`);
   }
+  // Second compat-profile token: staged as the empty mapping (no overrides).
+  // The injector swaps this literal at runtime only after a remote profile
+  // passed the fail-closed verification chain in compat-profile-client.mjs.
+  const compatToken = "__DREAM_SKIN_COMPAT_OVERRIDES_JSON__";
+  if (source.split(compatToken).length - 1 !== 1) {
+    throw new Error(`runtime/renderer-inject.js must contain exactly one ${compatToken} token`);
+  }
+  const defaultCompatOverrides = JSON.stringify({});
+  JSON.parse(defaultCompatOverrides);
   return source.replace(token, () => JSON.stringify(runtimeContract))
-    .replace(predicateToken, () => JSON.stringify(cssPredicateManifest(expandedCss)));
+    .replace(predicateToken, () => JSON.stringify(cssPredicateManifest(expandedCss)))
+    .replace(compatToken, () => defaultCompatOverrides);
 }
 
 function compileSafeCssFileValidator(source) {
@@ -137,6 +147,10 @@ const sourceSafeCssFileValidator = await fs.readFile(
   path.join(projectRoot, "runtime", "validate-safe-css-file.mjs"),
   "utf8",
 );
+const sourceCompatProfileClient = await fs.readFile(
+  path.join(toolsRoot, "compat-profile-client.mjs"),
+  "utf8",
+);
 const sourceImageMetadata = await fs.readFile(
   path.join(projectRoot, "runtime", "image-metadata.mjs"),
   "utf8",
@@ -152,6 +166,16 @@ const outputs = [
     // as the only editable source.
     content: selectorSource,
     paths: ["macos/assets/selectors.json", "windows/assets/selectors.json"],
+  },
+  {
+    // Shared remote compat-profile client (fetch + fail-closed verification +
+    // override merge). Staged verbatim so both platform injectors import one
+    // implementation instead of drifting copies; tools/ stays the only source.
+    content: sourceCompatProfileClient,
+    paths: [
+      "macos/assets/compat-profile-client.mjs",
+      "windows/assets/compat-profile-client.mjs",
+    ],
   },
   {
     content: expandedCss,

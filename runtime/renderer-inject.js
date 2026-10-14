@@ -1,6 +1,21 @@
 // Canonical cross-platform renderer. Run tools/sync-runtime-assets.mjs after editing.
 ((cssText, artDataUrl, themeConfig) => {
   const SELECTOR_CONTRACT = __DREAM_SKIN_SELECTORS_JSON__;
+  // Remote compat-profile selector overrides (dreamskin-compat-profile/1).
+  // tools/sync-runtime-assets.mjs substitutes this token with {} (no
+  // overrides); the injector substitutes the verified {key: selector} mapping
+  // only after the whole fail-closed validation chain passed. Only the
+  // selector string of keys that already exist in the built-in contract may be
+  // replaced — tier/scope/required stay owned by the built-in contract and no
+  // key is ever added — so every downstream consumer (selectorByKey, L1 scans,
+  // shell probes) reads one merged contract.
+  const COMPAT_PROFILE_OVERRIDES = __DREAM_SKIN_COMPAT_OVERRIDES_JSON__;
+  if (COMPAT_PROFILE_OVERRIDES && typeof COMPAT_PROFILE_OVERRIDES === "object") {
+    for (const entry of SELECTOR_CONTRACT.selectors) {
+      const override = COMPAT_PROFILE_OVERRIDES[entry.key];
+      if (typeof override === "string" && override) entry.selector = override;
+    }
+  }
   const STATE_KEY = "__CODEX_DREAM_SKIN_STATE__";
   const DISABLED_KEY = "__CODEX_DREAM_SKIN_DISABLED__";
   const STYLE_REGISTRY_KEY = "__CODEX_DREAM_SKIN_STYLE_SHEETS__";
