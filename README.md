@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/social-preview.png" alt="Codex 动态壁纸" width="100%">
+  <img src="docs/images/wallpaper-demo.gif" alt="Codex 动态壁纸实拍演示（阳光沙滩动态壁纸）" width="100%">
 </p>
 
 <p align="center">
