@@ -12,19 +12,33 @@ import {
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const windowsRoot = path.resolve(here, "..");
-const featured = await fs.readFile(path.join(windowsRoot, "assets", "dream-reference.jpg"));
+const repositoryRoot = path.resolve(windowsRoot, "..");
+const featuredPath = path.join(
+  repositoryRoot, "docs", "images", "presets", "arina-hashimoto-dark.jpg",
+);
+const featured = await fs.readFile(featuredPath);
+const blank = await fs.readFile(path.join(windowsRoot, "assets", "blank.png"));
 const helper = path.join(windowsRoot, "scripts", "image-metadata.mjs");
 
 assert.deepEqual(readImageMetadata(featured, ".jpg"), {
-  width: 2560,
-  height: 1440,
-  ratio: 2560 / 1440,
-  wide: true,
+  width: 2308,
+  height: 1572,
+  ratio: 2308 / 1572,
+  wide: false,
   aspect: "wide",
   taskMode: "ambient",
 });
 
-const cli = spawnSync(process.execPath, [helper, "--check", path.join(windowsRoot, "assets", "dream-reference.jpg")], {
+assert.deepEqual(readImageMetadata(blank, ".png"), {
+  width: 16,
+  height: 16,
+  ratio: 1,
+  wide: false,
+  aspect: "square",
+  taskMode: "ambient",
+});
+
+const cli = spawnSync(process.execPath, [helper, "--check", featuredPath], {
   encoding: "utf8",
 });
 assert.equal(cli.status, 0);

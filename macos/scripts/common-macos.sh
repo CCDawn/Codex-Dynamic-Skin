@@ -356,15 +356,22 @@ active_theme_appearance() {
 const fs = require("node:fs");
 let appearance = "auto";
 try { appearance = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).appearance; } catch {}
-process.stdout.write(appearance === "light" || appearance === "dark" ? appearance : "auto");
+process.stdout.write(["light", "dark", "none"].includes(appearance) ? appearance : "auto");
 ' "$THEME_DIR/theme.json"
 }
 
 # Pin Codex appearanceTheme to the staged theme's declared appearance (or put
-# the user's original line back for auto themes). Callers must only run this
-# while Codex is closed; config writes race the app's own saves otherwise.
+# the user's original line back for auto themes). A "none" theme is the new
+# default: wallpaper-only skins never read or write Codex config.toml at all.
+# Callers must only run this while Codex is closed; config writes race the
+# app's own saves otherwise.
 sync_appearance_pin() {
-  "$NODE" "$SCRIPT_DIR/theme-config.mjs" install "$CONFIG_PATH" "$THEME_BACKUP_PATH" "$(active_theme_appearance)"
+  local appearance
+  appearance="$(active_theme_appearance)"
+  if [ "$appearance" = "none" ]; then
+    return 0
+  fi
+  "$NODE" "$SCRIPT_DIR/theme-config.mjs" install "$CONFIG_PATH" "$THEME_BACKUP_PATH" "$appearance"
 }
 
 process_started_at() {

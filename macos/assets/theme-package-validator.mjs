@@ -292,7 +292,7 @@ function validateOfficialTheme(value) {
   assertExactKeys(
     theme,
     THEME_REQUIRED,
-    [...THEME_COPY_KEYS, "promoUrl", "appearance", "art", "colors"],
+    [...THEME_COPY_KEYS, "promoUrl", "appearance", "ui", "art", "colors"],
     "theme.json",
   );
   if (theme.schemaVersion !== 1) fail("theme.json must use schemaVersion 1");
@@ -304,8 +304,11 @@ function validateOfficialTheme(value) {
     if (theme[key] !== undefined) assertString(theme[key], `theme.json.${key}`, { max: 120 });
   }
   if (theme.promoUrl !== undefined) assertString(theme.promoUrl, "theme.json.promoUrl", { max: 512 });
-  if (theme.appearance !== undefined && !new Set(["auto", "light", "dark"]).has(theme.appearance)) {
+  if (theme.appearance !== undefined && !new Set(["auto", "light", "dark", "none"]).has(theme.appearance)) {
     fail("theme.json.appearance is unsupported");
+  }
+  if (theme.ui !== undefined && !new Set(["wallpaper-only", "full"]).has(theme.ui)) {
+    fail("theme.json.ui is unsupported");
   }
   if (theme.art !== undefined) {
     const art = assertObject(theme.art, "theme.json.art");

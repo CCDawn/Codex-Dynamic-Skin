@@ -736,7 +736,10 @@ export async function loadTheme(themeDir, preferenceOptions = {}) {
     "background", "panel", "panelAlt", "accent", "accentAlt", "secondary",
     "highlight", "text", "muted", "line",
   ];
-  const appearance = choice(raw.appearance, "appearance", ["auto", "light", "dark"]);
+  // "none" keeps the shell scripts entirely away from Codex config.toml (no
+  // appearanceTheme pin, no install-time writes). It renders like "auto".
+  const appearance = choice(raw.appearance, "appearance", ["auto", "light", "dark", "none"]);
+  const ui = choice(raw.ui, "ui", ["wallpaper-only", "full"]) ?? "wallpaper-only";
   if (raw.art !== undefined && (!raw.art || typeof raw.art !== "object" || Array.isArray(raw.art))) {
     throw new Error(`${configPath} has an invalid art field`);
   }
@@ -775,7 +778,8 @@ export async function loadTheme(themeDir, preferenceOptions = {}) {
   };
   const userTransparency = await readThemeTransparency(theme.id, { preferencesPath: themePreferencesPath("darwin"), ...preferenceOptions });
   if (userTransparency !== undefined) theme.userTransparency = userTransparency;
-  if (appearance !== undefined) theme.appearance = appearance;
+  theme.appearance = appearance ?? "none";
+  theme.ui = ui;
   if (Object.values(art).some((value) => value !== undefined)) {
     theme.art = Object.fromEntries(Object.entries(art).filter(([, value]) => value !== undefined));
   }

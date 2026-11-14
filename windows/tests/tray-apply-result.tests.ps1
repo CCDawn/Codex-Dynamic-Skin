@@ -114,7 +114,7 @@ try {
   }, $true)
   . ([scriptblock]::Create($recoveryDefinition.Extent.Text))
   $theme = Read-DreamSkinUtf8File -Path (Join-Path $root 'assets/theme.json') | ConvertFrom-Json
-  $imagePath = Join-Path $root 'assets/dream-reference.jpg'
+  $imagePath = Join-Path $root 'assets/blank.png'
   $null = Set-DreamSkinActiveTheme -ImagePath $imagePath -Theme $theme -Name 'Before' -StateRoot $StateRoot
   $paths = Get-DreamSkinThemePaths -StateRoot $StateRoot
   $before = Get-DreamSkinThemeRuntimeContentFingerprint -ThemeDirectory $paths.Active

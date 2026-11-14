@@ -9,6 +9,8 @@
   "statusText": "THEME ONLINE",
   "quote": "Make something wonderful",
   "image": "portal-hero.png",
+  "appearance": "none",
+  "ui": "wallpaper-only",
   "colors": {
     "background": "#F7F4F5",
     "panel": "#FFFFFF",

@@ -465,8 +465,9 @@ function Install-DreamSkinRuntimeEngine {
   $engine = Get-DreamSkinRuntimeEnginePaths -StateRoot $fullStateRoot
   $required = @(
     'VERSION',
+    'assets\blank.png',
     'assets\compat-profile-client.mjs',
-    'assets\dream-reference.jpg',
+    'assets\default-preset.jpg',
     'assets\dream-skin.css',
     'assets\renderer-inject.js',
     'assets\safe-css-policy.json',
@@ -944,6 +945,79 @@ namespace CodexDreamSkin {
 '@
 }
 
+function Invoke-DreamSkinCodexWindowSummon {
+  param([Parameter(Mandatory = $true)][object]$Codex)
+  # A relaunched Codex can start tray-minimized or behind the foreground
+  # window; verification treats a hidden document as a failure, so summon
+  # and foreground the main window. Package activation on a running
+  # single-instance app shows and focuses its window even from a
+  # background service context. The final foreground step uses the input
+  # attach bypass because plain SetForegroundWindow/AppActivate are
+  # denied to background callers by the OS foreground lock, which would
+  # leave the window fully occluded and the document hidden.
+  if (-not ('DreamSkin.WindowSummon' -as [type])) {
+    Add-Type -Namespace DreamSkin -Name WindowSummon -MemberDefinition @'
+[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+[DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
+[DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int n);
+[DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
+[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
+[DllImport("user32.dll")] public static extern bool AttachThreadInput(uint a, uint b, bool attach);
+[DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+'@
+  }
+  $appUserModelId = "$($Codex.AppUserModelId)"
+  $deadline = (Get-Date).AddSeconds(15)
+  $activations = 0
+  while ((Get-Date) -lt $deadline) {
+    Start-Sleep -Milliseconds 700
+    $codexProcesses = @(Get-DreamSkinCodexProcesses -Codex $Codex)
+    if ($codexProcesses.Count -eq 0) { continue }
+    $windowHandles = @($codexProcesses | ForEach-Object {
+      try { (Get-Process -Id ([int]$_.ProcessId) -ErrorAction Stop).MainWindowHandle } catch { [IntPtr]::Zero }
+    })
+    $hasWindow = @($windowHandles | Where-Object { $_ -ne [IntPtr]::Zero }).Count -gt 0
+    if (-not $hasWindow) {
+      # Tray-minimized with no window at all: package activation makes the
+      # single-instance app create and show its main window.
+      if ($activations -lt 2) {
+        $activations += 1
+        try { $null = [CodexDreamSkin.PackageLauncher]::Launch($appUserModelId, '') } catch {}
+      }
+      continue
+    }
+    if ($activations -lt 1) {
+      # A window exists but may sit behind the caller: activate once so
+      # the shell foregrounds it.
+      $activations += 1
+      try { $null = [CodexDreamSkin.PackageLauncher]::Launch($appUserModelId, '') } catch {}
+      Start-Sleep -Milliseconds 800
+    }
+    $windowed = @($codexProcesses | ForEach-Object {
+      try { Get-Process -Id ([int]$_.ProcessId) -ErrorAction Stop } catch { $null }
+    } | Where-Object { $null -ne $_ -and $_.MainWindowHandle -ne 0 } | Select-Object -First 1)
+    if ($null -eq $windowed) { continue }
+    $handle = $windowed.MainWindowHandle
+    if ([DreamSkin.WindowSummon]::IsIconic($handle)) {
+      [void][DreamSkin.WindowSummon]::ShowWindow($handle, 9)
+    }
+    $foreground = [DreamSkin.WindowSummon]::GetForegroundWindow()
+    $foregroundPid = [uint32]0
+    $foregroundThread = [DreamSkin.WindowSummon]::GetWindowThreadProcessId($foreground, [ref]$foregroundPid)
+    $ownThread = [DreamSkin.WindowSummon]::GetCurrentThreadId()
+    $attached = $foregroundThread -ne 0 -and
+      [DreamSkin.WindowSummon]::AttachThreadInput($ownThread, $foregroundThread, $true)
+    [void][DreamSkin.WindowSummon]::BringWindowToTop($handle)
+    [void][DreamSkin.WindowSummon]::SetForegroundWindow($handle)
+    if ($attached) {
+      [void][DreamSkin.WindowSummon]::AttachThreadInput($ownThread, $foregroundThread, $false)
+    }
+    if ([DreamSkin.WindowSummon]::GetForegroundWindow() -eq $handle) { return $true }
+  }
+  return $false
+}
+
 function Start-DreamSkinCodex {
   param(
     [Parameter(Mandatory = $true)][object]$Codex,
@@ -957,6 +1031,7 @@ function Start-DreamSkinCodex {
   $argumentLine = ConvertTo-DreamSkinArgumentLine -Arguments $Arguments
   $processId = [CodexDreamSkin.PackageLauncher]::Launch($appUserModelId, $argumentLine)
   if ($processId -le 0) { throw 'Windows did not return a Codex process ID after package activation.' }
+  try { [void](Invoke-DreamSkinCodexWindowSummon -Codex $Codex) } catch {}
   return $processId
 }
 
@@ -1383,6 +1458,113 @@ function Get-DreamSkinProcessStartedAt {
   } catch {
     return $null
   }
+}
+
+# Best-effort: drop the inheritable flag from this process's standard handles
+# so a later Start-Process can never pass them down a spawn chain. Windows
+# PowerShell 5.1 launches every UseShellExecute=$false child with
+# bInheritHandles=TRUE, and any child created through its -RedirectStandard*
+# machinery also receives the raw std handles via STARTF_USESTDHANDLES (the
+# duplicates are marked inheritable), so a long-lived grandchild would keep
+# this script's stdout/stderr pipe open forever and leave callers that read
+# our output to EOF (bash "| tail", PowerShellRunner ReadToEndAsync) hanging.
+function Clear-DreamSkinStandardHandleInheritance {
+  if (-not ('DreamSkin.NativeHandles' -as [type])) {
+    Add-Type -Namespace DreamSkin -Name NativeHandles -MemberDefinition @'
+[DllImport("kernel32.dll", SetLastError = true)]
+public static extern IntPtr GetStdHandle(int nStdHandle);
+[DllImport("kernel32.dll", SetLastError = true)]
+public static extern bool SetHandleInformation(IntPtr hObject, int dwMask, int dwFlags);
+'@
+  }
+  foreach ($stdHandle in @(-10, -11, -12)) {
+    try {
+      $handle = [DreamSkin.NativeHandles]::GetStdHandle($stdHandle)
+      if ($handle -ne [IntPtr]::Zero -and $handle -ne [IntPtr](-1)) {
+        [void][DreamSkin.NativeHandles]::SetHandleInformation($handle, 1, 0)
+      }
+    } catch {
+      # Handle hygiene is an optimization; startup must not depend on it.
+    }
+  }
+}
+
+# Starts a long-lived daemon (the injector watcher) without leaking this
+# script's stdout/stderr/stdin handles into it. A plain Start-Process with
+# -RedirectStandardOutput/-RedirectStandardError cannot do that: the redirect
+# machinery injects the caller's raw std handles into the spawn chain, so the
+# daemon pins our output pipe and every pipe reader blocks until the daemon
+# dies. Instead, a short-lived bootstrap node process -- started WITHOUT any
+# redirection, which is empirically handle-clean -- spawns the daemon itself
+# with detached:true and explicit file stdio, reports the daemon PID through
+# a result file, and exits. Returns the daemon's Process object (liveness
+# checks via HasExited keep working exactly like a Start-Process -PassThru
+# result).
+function Start-DreamSkinDetachedNodeDaemon {
+  param(
+    [Parameter(Mandatory = $true)][string]$NodePath,
+    [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$ArgumentList,
+    [Parameter(Mandatory = $true)][string]$StdoutPath,
+    [Parameter(Mandatory = $true)][string]$StderrPath,
+    [ValidateRange(1000, 60000)][int]$BootstrapTimeoutMilliseconds = 15000
+  )
+  Clear-DreamSkinStandardHandleInheritance
+
+  $infoPath = "$StdoutPath.bootstrap-result.json"
+  Remove-Item -LiteralPath $infoPath -Force -ErrorAction SilentlyContinue
+  $spawnSpec = @{
+    file = $NodePath
+    arguments = @($ArgumentList)
+    stdout = $StdoutPath
+    stderr = $StderrPath
+  } | ConvertTo-Json -Compress -Depth 3
+
+  # No double quotes anywhere in the bootstrap source so it survives both the
+  # argument-line quoting and node's own argv parsing intact.
+  $bootstrapScript = 'const fs=require(''fs''),cp=require(''child_process'');const result={pid:0,error:null};try{const spec=JSON.parse(process.env.DREAMSKIN_DAEMON_SPAWN);const out=fs.openSync(spec.stdout,''w''),err=fs.openSync(spec.stderr,''w'');const child=cp.spawn(spec.file,spec.arguments,{stdio:[''ignore'',out,err],detached:true,windowsHide:true});child.unref();result.pid=child.pid;}catch(error){result.error=String(error&&error.stack||error);}try{fs.writeFileSync(process.env.DREAMSKIN_DAEMON_INFO,JSON.stringify(result));}catch(error){}process.exit(result.error?1:0);'
+  $quotedBootstrapScript = '"' + ($bootstrapScript -replace '(\\+)$', '$1$1') + '"'
+
+  $env:DREAMSKIN_DAEMON_SPAWN = $spawnSpec
+  $env:DREAMSKIN_DAEMON_INFO = $infoPath
+  $bootstrap = $null
+  try {
+    $bootstrap = Start-Process -FilePath $NodePath `
+      -ArgumentList @('-e', $quotedBootstrapScript) -WindowStyle Hidden -PassThru
+    if (-not $bootstrap.WaitForExit($BootstrapTimeoutMilliseconds)) {
+      try { Stop-Process -InputObject $bootstrap -Force -ErrorAction SilentlyContinue } catch {}
+      throw 'The Dream Skin daemon bootstrap did not exit in time; the daemon was not started.'
+    }
+  } finally {
+    Remove-Item Env:DREAMSKIN_DAEMON_SPAWN -ErrorAction SilentlyContinue
+    Remove-Item Env:DREAMSKIN_DAEMON_INFO -ErrorAction SilentlyContinue
+  }
+  if ($bootstrap.ExitCode -ne 0) {
+    throw "The Dream Skin daemon bootstrap failed (exit $($bootstrap.ExitCode)); the daemon was not started."
+  }
+
+  $daemonResult = $null
+  try {
+    $daemonResult = Get-Content -LiteralPath $infoPath -Raw -ErrorAction Stop | ConvertFrom-Json
+  } catch {
+    throw 'The Dream Skin daemon bootstrap did not report a daemon identity.'
+  }
+  if ($daemonResult.error) {
+    throw "The Dream Skin daemon could not be spawned: $($daemonResult.error)"
+  }
+  if (-not $daemonResult.pid -or [int]$daemonResult.pid -le 0) {
+    throw 'The Dream Skin daemon bootstrap reported an invalid daemon PID.'
+  }
+
+  $daemon = $null
+  $deadline = (Get-Date).AddSeconds(5)
+  while ($null -eq $daemon -and (Get-Date) -lt $deadline) {
+    $daemon = Get-Process -Id ([int]$daemonResult.pid) -ErrorAction SilentlyContinue
+    if ($null -eq $daemon) { Start-Sleep -Milliseconds 200 }
+  }
+  if ($null -eq $daemon) {
+    throw "The Dream Skin daemon exited immediately after being spawned (pid $($daemonResult.pid)). See $StderrPath"
+  }
+  return $daemon
 }
 
 function Stop-DreamSkinRecordedInjector {

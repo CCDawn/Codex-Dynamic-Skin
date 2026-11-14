@@ -130,8 +130,9 @@ const quote = validateText(
   120,
   "MAKE SOMETHING WONDERFUL",
 );
-const appearance = validateChoice(valueFor("appearance", "auto"), "appearance", ["auto", "light", "dark"]);
+const appearance = validateChoice(valueFor("appearance", "none"), "appearance", ["auto", "light", "dark", "none"]);
 const safeArea = validateChoice(valueFor("safe-area", "auto"), "safe-area", ["auto", "left", "right", "center", "none"]);
+const ui = validateChoice(valueFor("ui", "wallpaper-only"), "ui", ["wallpaper-only", "full"]);
 const taskMode = validateChoice(
   valueFor("task-mode", "auto"),
   "task-mode",
@@ -161,6 +162,7 @@ const custom = {
   quote: quote || "MAKE SOMETHING WONDERFUL",
   image,
   appearance,
+  ui,
   art: {
     safeArea,
     taskMode,

@@ -122,7 +122,7 @@ function makeFixture({
     const sidebarSelector = 'aside, nav[aria-label]';
     const composerSelector = '[data-testid*="composer" i], [data-testid*="prompt" i], ' +
       '[class*="composer" i], [class*="prompt" i]';
-    const composerLayoutRootSelector = '[class*="_ComposerLayoutRoot_"]';
+    const composerLayoutRootSelector = '[class*="ComposerLayoutRoot"]';
     const overlaySelector = '[role="dialog"], [aria-modal="true"]';
     partFixtures.shell = makeDomNode("generic-shell", body);
     partFixtures.sidebar = makeDomNode("generic-sidebar", partFixtures.shell, new Map(), [sidebarSelector]);
@@ -189,7 +189,7 @@ function makeFixture({
     partFixtures.composer = makeDomNode("composer", partFixtures.main);
     partFixtures.composerToolbar = makeDomNode("composer-toolbar", partFixtures.composer);
     register("aside.app-shell-left-panel", partFixtures.sidebar);
-    register("main:is(.main-surface, [data-app-shell-main-surface], [class*=\"_MainContentSurface_\"])", partFixtures.main);
+    register("main:is(.main-surface, [data-app-shell-main-surface], [class*=\"MainContentSurface\"])", partFixtures.main);
     register("header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*=\"_Header_\"])", partFixtures.header);
     register('[data-testid="home-icon"]', partFixtures.homeIcon);
     register('[data-feature="game-source"]', partFixtures.homeHero);
@@ -204,8 +204,8 @@ function makeFixture({
       register(messageSelector, partFixtures.userMessage);
       register(messageSelector, partFixtures.assistantMessage);
     }
-    register(':is(.composer-surface-chrome, [class*="_ComposerLayoutRoot_"], [data-composer-surface-variant][data-composer-radius-variant])', partFixtures.composer);
-    register(':is(.composer-surface-chrome [class*="_footer_"], [class*="_ComposerLayoutRoot_"] [class*="_ComposerLayoutFooter_"], [data-composer-surface-variant][data-composer-radius-variant] :is([data-composer-footer-responsive], [class*="_ComposerLayoutFooter_"], [class*="_footer_"]))', partFixtures.composerToolbar);
+    register(':is(.composer-surface-chrome, [class*="ComposerLayoutRoot"], [data-composer-surface-variant][data-composer-radius-variant])', partFixtures.composer);
+    register(':is(.composer-surface-chrome [class*="_footer_"], [class*="ComposerLayoutRoot"] [class*="ComposerLayoutFooter"], [data-composer-surface-variant][data-composer-radius-variant] :is([data-composer-footer-responsive], [class*="ComposerLayoutFooter"], [class*="_footer_"]))', partFixtures.composerToolbar);
   }
   if (cachedPages) {
     const page = (name, active) => makeDomNode(name, body,
@@ -260,6 +260,7 @@ function makeFixture({
     const node = makeDomNode("video");
     const mediaListeners = new Map();
     Object.defineProperty(node, "isConnected", { get: () => Boolean(node.parentElement) });
+    const inheritedRemoveAttribute = node.removeAttribute;
     Object.assign(node, {
       tagName: "video",
       autoplay: false,
@@ -293,6 +294,12 @@ function makeFixture({
       pause() { node.paused = true; },
       play() { node.paused = false; return Promise.resolve(); },
       load() { node.readyState = 0; node.loadCount += 1; },
+      removeAttribute(attribute) {
+        inheritedRemoveAttribute(attribute);
+        // Mirror the DOM: clearing the src attribute empties the property, so
+        // stop-then-restart flows observe the same element state as a browser.
+        if (attribute === "src") node.src = "";
+      },
       remove() { if (node.id) nodes.delete(node.id); node.parentElement = null; },
     });
     videoElements.push(node);
@@ -393,10 +400,12 @@ function makeFixture({
   };
   const payloadFor = (theme = {}, cssText = ".fixture { color: red; }") => {
     const template = fixture.template;
+    // The established fixtures exercise the complete reskin, so they pin
+    // ui:"full" explicitly; the renderer default is "wallpaper-only".
     return template
       .replace("__DREAM_SKIN_CSS_JSON__", JSON.stringify(cssText))
       .replace("__DREAM_SKIN_ART_JSON__", JSON.stringify("data:image/png;base64,AA=="))
-      .replace("__DREAM_SKIN_THEME_JSON__", JSON.stringify({ id: "fixture", appearance: "auto", ...theme }))
+      .replace("__DREAM_SKIN_THEME_JSON__", JSON.stringify({ id: "fixture", appearance: "auto", ui: "full", ...theme }))
       .replace("__DREAM_SKIN_VERSION_JSON__", JSON.stringify("test"))
       .replace("__DREAM_SKIN_STYLE_REVISION_JSON__", JSON.stringify("css-rev"))
       .replace("__DREAM_SKIN_PAYLOAD_REVISION_JSON__", JSON.stringify("payload-rev"));
@@ -476,6 +485,62 @@ export async function runRendererRuntimeTest(assetRoot) {
   assert.doesNotMatch(css, /(?:^|[.#\s])(?:codex-dream-skin|dream-skin-home|dream-home|dream-task)(?:[\s.#:{>]|$)|home-suggestion-list-item/);
   assert.match(css, /html\[data-dream-skin="active"\]/);
 
+  // UI modes: every reskin rule (cards, colors, fonts, layout, scrims) lives
+  // behind html[data-dream-ui="full"]. The wallpaper-only default keeps only
+  // the wallpaper layers, surface transparency and accessibility active, so
+  // an official UI session can never restyle borders, foregrounds or layout.
+  assert.match(
+    css,
+    /html\[data-dream-skin="active"\]\[data-dream-ui="wallpaper-only"\] body \{\s*background-image: var\(--dream-skin-art, none\) !important;/,
+    "Wallpaper-only mode must paint the image wallpaper once on the window body.",
+  );
+  assert.match(
+    css,
+    /html\[data-dream-skin="active"\]:has\(#codex-dream-skin-media\) body \{\s*background-image: none !important;\s*background-color: transparent !important;\s*\}/,
+    "The video media layer's body transparency must stay active in both UI modes.",
+  );
+  const shellMain = '(?:__DREAM_SELECTOR_SHELL_MAIN__|main:is\\(\\.main-surface, \\[data-app-shell-main-surface\\], \\[class\\*="MainContentSurface"\\]\\))';
+  const leftPanel = '(?:__DREAM_SELECTOR_LEFT_PANEL__|aside\\.app-shell-left-panel)';
+  const composerChrome = '(?:__DREAM_SELECTOR_COMPOSER_CHROME__|:is\\(\\.composer-surface-chrome, \\[class\\*="ComposerLayoutRoot"\\], \\[data-composer-surface-variant\\]\\[data-composer-radius-variant\\]\\))';
+  for (const keptRule of [
+    /html\[data-dream-skin="active"\] \[data-app-shell-page-surface="true"\],/,
+    new RegExp(`html\\[data-dream-skin="active"\\] ${shellMain}\\s*\\n\\s*:is\\(div, section, aside\\)\\[class~="bg-token-main-surface-primary"\\] \\{\\s*background: transparent !important;`),
+    new RegExp(`html\\[data-dream-skin="active"\\] ${shellMain}:not\\(:has\\(\\[role="main"\\]\\)\\) \\[role="main"\\] \\{\\s*background: transparent !important;`),
+    // 26.1106 paints the page surface on the shell-main element itself; the
+    // background clear is the wallpaper-only contract, not a reskin.
+    new RegExp(`html\\[data-dream-skin="active"\\] ${shellMain} \\{\\s*background: transparent !important;\\s*\\}`),
+    /html\[data-dream-skin="active"\] \[data-app-shell-focus-area\] > \.bg-surface \{\s*background: transparent !important;/,
+    /html\[data-dream-skin="active"\] \[data-app-shell-pane-frame\],\s*html\[data-dream-skin="active"\] \[data-app-shell-pane-frame\] \.bg-surface \{\s*background: transparent !important;/,
+    // 26.1106 conversation decorations (top fade, composer fade, surface
+    // plate) must clear in both modes, otherwise they read as fog bands over
+    // the wallpaper once the surfaces behind them turn transparent.
+    /html\[data-dream-skin="active"\] :is\(\.app-shell-main-content-top-fade, \[data-app-shell-main-content-top-fade\]:not\(:has\(\*\)\), \[class\*="MainContentTopFade"\]\) \{\s*background: transparent !important;\s*background-image: none !important;\s*\}/,
+    new RegExp(`html\\[data-dream-skin="active"\\] ${shellMain} \\[class~="pointer-events-none"\\]\\[class~="absolute"\\]\\[class~="from-surface"\\],\\s*html\\[data-dream-skin="active"\\] ${shellMain} \\[class~="pointer-events-none"\\]\\[class~="absolute"\\]\\[class~="bg-surface"\\] \\{\\s*background: transparent !important;\\s*background-image: none !important;`),
+    // The conversation cards (quota banner, composer body) follow the panel
+    // transparency slider: --ds-user-surface-alpha needs a wallpaper-only
+    // consumer or the slider does nothing to the conversation area. The
+    // square ComposerLayoutRoot wrapper must clear instead, or translucent
+    // white spikes poke out behind the rounded card (26.1106).
+    new RegExp(`html\\[data-dream-skin="active"\\]\\[data-dream-ui="wallpaper-only"\\] ${shellMain} ${composerChrome} \\{\\s*background: transparent !important;\\s*\\}`),
+    new RegExp(`html\\[data-dream-skin="active"\\]\\[data-dream-ui="wallpaper-only"\\] ${shellMain} aside\\[class\\*="banner-"\\],\\s*html\\[data-dream-skin="active"\\]\\[data-dream-ui="wallpaper-only"\\] ${shellMain} \\[class\\*="ComposerLayoutBody"\\] \\{\\s*background-color: rgb\\(from var\\(--color-surface, #ffffff\\) r g b / var\\(--ds-user-surface-alpha, 0\\.92\\)\\) !important;\\s*\\}`),
+  ]) {
+    assert.match(css, keptRule, "Surface-transparency rules must stay active in wallpaper-only mode.");
+  }
+  for (const [label, ungated] of [
+    ["the sidebar card", new RegExp(`html\\[data-dream-skin="active"\\] ${leftPanel} \\{`)],
+    ["the main surface card", new RegExp(`html\\[data-dream-skin="active"\\] ${shellMain} \\{\\s*(position|border|border-radius|box-shadow)`)],
+    ["the composer card", new RegExp(`html\\[data-dream-skin="active"\\] ${composerChrome} \\{`)],
+    ["native text-token rebinding", /html\[data-dream-skin="active"\] \{\s*--color-text:/],
+    ["forced dark color-scheme", /:root\[data-dream-skin="active"\] \{\s*color-scheme:/],
+    ["the titlebar scrim variables", /html\[data-dream-skin="active"\]\[data-dream-art-wide="true"\] \{\s*--ds-titlebar-edge:/],
+  ]) {
+    assert.doesNotMatch(css, ungated, `${label} must be gated behind [data-dream-ui="full"].`);
+  }
+  assert.match(css, new RegExp(`html\\[data-dream-skin="active"\\]\\[data-dream-ui="full"\\] ${leftPanel} \\{`));
+  assert.match(css, new RegExp(`html\\[data-dream-skin="active"\\]\\[data-dream-ui="full"\\] ${shellMain} \\{`));
+  assert.match(css, new RegExp(`html\\[data-dream-skin="active"\\]\\[data-dream-ui="full"\\] ${composerChrome} \\{`));
+  assert.match(css, /:root\[data-dream-skin="active"\]\[data-dream-ui="full"\] \{\s*color-scheme: dark !important;/);
+
   // Codex 26.924 gave Projects, Pull Requests and Customize their own
   // full-window opaque surfaces, and each one hides a different layer than
   // the other two. Every anchor below was counted on the live 26.924
@@ -536,12 +601,12 @@ export async function runRendererRuntimeTest(assetRoot) {
   // Home gating must stay single-level: CSS forbids :has() inside :has(),
   // and Chromium drops any rule that nests it (the v1.3.1 regression).  The
   // canonical CSS therefore gates on the :has()-free home-route-css alias.
-  assert.match(css, /main:is\(\.main-surface, \[data-app-shell-main-surface\], \[class\*=\"_MainContentSurface_\"\]\):has\(\[role="main"\]\)/);
-  assert.match(css, /main:is\(\.main-surface, \[data-app-shell-main-surface\], \[class\*=\"_MainContentSurface_\"\]\):not\(:has\(\[role="main"\]\)\)/);
+  assert.match(css, /main:is\(\.main-surface, \[data-app-shell-main-surface\], \[class\*=\"MainContentSurface\"\]\):has\(\[role="main"\]\)/);
+  assert.match(css, /main:is\(\.main-surface, \[data-app-shell-main-surface\], \[class\*=\"MainContentSurface\"\]\):not\(:has\(\[role="main"\]\)\)/);
   assert.match(css, /header:is\(\.app-header-tint, \[data-app-shell-header-edge-scroll\], \[class\*=\"_Header_\"\]\)/);
   // Codex 26.924 tags the route wrapper with the same attribute, so the bare
   // form would hide the thread and composer with the fade (#415).
-  assert.match(css, /:is\(\.app-shell-main-content-top-fade, \[data-app-shell-main-content-top-fade\]:not\(:has\(\*\)\), \[class\*=\"_MainContentTopFade_\"\]\)/);
+  assert.match(css, /:is\(\.app-shell-main-content-top-fade, \[data-app-shell-main-content-top-fade\]:not\(:has\(\*\)\), \[class\*=\"MainContentTopFade\"\]\)/);
   assert.doesNotMatch(css, /:has\([^()]*:has\(/);
   assert.doesNotMatch(
     css,
@@ -575,7 +640,7 @@ export async function runRendererRuntimeTest(assetRoot) {
     ["dark", "light", ["#f8a6c8", "#f1a275", "#83d197", "#b897f4", "#63a8f8", "#f9dc78", "#b9b9b9"]],
     ["light", "dark", ["#ab4f7a", "#ac4f23", "#3a843f", "#643cae", "#1f4e94", "#b8802b", "#4f4f4f"]],
   ]) {
-    const selector = `html[data-dream-skin="active"][data-dream-shell="${shell}"][data-theme="${native}"] [data-markdown-copy="code-block"]`;
+    const selector = `html[data-dream-skin="active"][data-dream-ui="full"][data-dream-shell="${shell}"][data-theme="${native}"] [data-markdown-copy="code-block"]`;
     const rule = syntaxRules.find((match) => match[1].trim() === selector);
     assert.ok(rule, `${shell} code palette must only bridge the opposite native appearance`);
     const colors = Object.fromEntries([...rule[2].matchAll(/--color-codex-syntax-([a-z]+):\s*([^;]+);/g)].map((match) => [match[1], match[2].trim()]));
@@ -603,11 +668,11 @@ export async function runRendererRuntimeTest(assetRoot) {
     "Only the table preview's associated overlay should honor uploaded background alpha with the legacy 90% fallback");
   const tableBackdropBlur = tablePreviewRules.filter((rule) => /backdrop-filter:\s*blur\(/.test(rule[2]));
   assert.equal(tableBackdropBlur.length, 1, "Only the table overlay should blur underlying conversation text");
-  assert.ok(tableBackdropBlur[0][1].trim().startsWith('html[data-dream-skin="active"][data-dream-upload-alpha="true"] .codex-dialog-overlay:has(')
+  assert.ok(tableBackdropBlur[0][1].trim().startsWith('html[data-dream-skin="active"][data-dream-ui="full"][data-dream-upload-alpha="true"] .codex-dialog-overlay:has(')
     && /backdrop-filter:\s*blur\(12px\)\s*!important/.test(tableBackdropBlur[0][2]),
     "Table backdrop blur must require uploaded alpha and target the overlay, not the isolated preview panel");
   assert.match(css,
-    /@layer\s+utilities\s*\{\s*html\[data-dream-skin="active"\]\s+\.codex-dialog-overlay:has\(~ \[role="dialog"\] \[data-testid="image-preview-dismiss-area"\] table\)\s*\{[^{}]*background:[^{}]*!important;/,
+    /@layer\s+utilities\s*\{\s*html\[data-dream-skin="active"\]\[data-dream-ui="full"\]\s+\.codex-dialog-overlay:has\(~ \[role="dialog"\] \[data-testid="image-preview-dismiss-area"\] table\)\s*\{[^{}]*background:[^{}]*!important;/,
     "Table scrim must override native layered !bg-black/90 inside the same utilities layer");
   const tableShell = tablePreviewRules.find((rule) => rule[1].trim().endsWith('[role="dialog"][aria-modal="true"]:has([data-testid="image-preview-dismiss-area"] table)'));
   assert.ok(tableShell && /background:\s*transparent\s*!important/.test(tableShell[2])
@@ -621,7 +686,7 @@ export async function runRendererRuntimeTest(assetRoot) {
     "Nested inherited table backgrounds must not accumulate the panel alpha");
   // A fixed light skin over native dark must not combine dark syntax/labels
   // with native dark backgrounds, even when no uploaded alpha is present.
-  const mismatchScope = 'html[data-dream-skin="active"]:is([data-dream-shell="light"][data-theme="dark"], [data-dream-shell="dark"][data-theme="light"])';
+  const mismatchScope = 'html[data-dream-skin="active"][data-dream-ui="full"]:is([data-dream-shell="light"][data-theme="dark"], [data-dream-shell="dark"][data-theme="light"])';
   const mismatchSurface = popupRules.find((rule) => rule[1].trim() === mismatchScope);
   assert.ok(mismatchSurface, "Surface bridging must cover both mismatches while excluding matching appearances");
   for (const token of ["surface", "surface-secondary", "surface-tertiary", "surface-elevated", "token-dropdown-background"]) {
@@ -640,7 +705,7 @@ export async function runRendererRuntimeTest(assetRoot) {
     const themedBackgrounds = popupRules.filter((rule) => rule[1].trim().endsWith(target)
       && /(?:^|;)\s*background:\s*rgb\(/.test(rule[2]));
     assert.equal(themedBackgrounds.length, 1, `${target} must use one unified theme background rule`);
-    assert.equal(themedBackgrounds[0][1].replace(/\s+/g, " ").trim(), `html[data-dream-skin="active"] ${target}`,
+    assert.equal(themedBackgrounds[0][1].replace(/\s+/g, " ").trim(), `html[data-dream-skin="active"][data-dream-ui="full"] ${target}`,
       "Markdown surfaces must follow the skin palette in matching and mismatched native appearances, with or without uploaded alpha");
     assert.ok(themedBackgrounds[0][2].includes('background: rgb(var(--ds-panel-2-rgb) / var(--ds-upload-panel-alt-alpha, 1)) !important;'),
       "Code blocks and table toolbars must preserve panelAlt alpha, defaulting to opaque when absent");
@@ -656,7 +721,7 @@ export async function runRendererRuntimeTest(assetRoot) {
   assert.ok(popupBlur, "Attachment suggestions must blur the backdrop on their painted list container");
   assert.ok(popupBlur[1].includes('[role="menu"]') && popupBlur[1].includes('[data-ds-part="dialog"]'),
     "Menus and cmdk search dialogs must also obscure underlying conversation glyphs");
-  assert.ok(popupBlur[1].trim().startsWith('html[data-dream-skin="active"][data-dream-upload-alpha="true"]'),
+  assert.ok(popupBlur[1].trim().startsWith('html[data-dream-skin="active"][data-dream-ui="full"][data-dream-upload-alpha="true"]'),
     "Popup overlap blur must require uploaded alpha so legacy themes retain their rendering");
   assert.doesNotMatch(popupBlur[2], /(?:background(?:-color)?|opacity|--ds-upload-[\w-]+)\s*:/,
     "Popup readability must not replace uploaded alpha with an opaque background");
@@ -675,12 +740,12 @@ export async function runRendererRuntimeTest(assetRoot) {
   );
   assert.match(
     css,
-    /data-composer-utility-bar-variant="home"\][\s\S]{0,180}> \[class\*="_ComposerLayoutBody_"\][\s\S]{0,220}background:\s*transparent\s*!important;[\s\S]{0,180}backdrop-filter:\s*none\s*!important;/,
+    /data-composer-utility-bar-variant="home"\][\s\S]{0,180}> \[class\*="ComposerLayoutBody"\][\s\S]{0,220}background:\s*transparent\s*!important;[\s\S]{0,180}backdrop-filter:\s*none\s*!important;/,
     "The Home-only native Composer body must stay transparent behind the public root.",
   );
   assert.match(
     css,
-    /data-composer-placement="thread"\][\s\S]{0,260}> \[class\*="_ComposerLayoutBody_"\][\s\S]{0,220}background:\s*transparent\s*!important;[\s\S]{0,180}backdrop-filter:\s*none\s*!important;/,
+    /data-composer-placement="thread"\][\s\S]{0,260}> \[class\*="ComposerLayoutBody"\][\s\S]{0,220}background:\s*transparent\s*!important;[\s\S]{0,180}backdrop-filter:\s*none\s*!important;/,
     "The thread Composer body must stay transparent behind the public ComposerLayoutRoot.",
   );
   assert.match(
@@ -730,22 +795,22 @@ export async function runRendererRuntimeTest(assetRoot) {
   );
   assert.match(
     css,
-    /(?:__DREAM_SELECTOR_SHELL_MAIN__|main:is\(\.main-surface, \[data-app-shell-main-surface\], \[class\*="_MainContentSurface_"\]\))[\s\S]{0,180}\[data-vscode-context\]\[tabindex="0"\]:focus-visible[\s\S]{0,120}outline:\s*none\s*!important;/,
+    /(?:__DREAM_SELECTOR_SHELL_MAIN__|main:is\(\.main-surface, \[data-app-shell-main-surface\], \[class\*="MainContentSurface"\]\))[\s\S]{0,180}\[data-vscode-context\]\[tabindex="0"\]:focus-visible[\s\S]{0,120}outline:\s*none\s*!important;/,
     "The non-interactive Codex route wrapper must not draw a window-sized focus outline.",
   );
   assert.match(
     css,
-    /:not\(:has\(main:is\(\.main-surface, \[data-app-shell-main-surface\], \[class\*=\"_MainContentSurface_\"\]\)\)\)[\s\S]{0,120}\[data-ds-part="sidebar"\]/,
+    /:not\(:has\(main:is\(\.main-surface, \[data-app-shell-main-surface\], \[class\*=\"MainContentSurface\"\]\)\)\)[\s\S]{0,120}\[data-ds-part="sidebar"\]/,
     "Core CSS must style the validated generic sidebar when the exact shell selector is absent.",
   );
   assert.match(
     css,
-    /:not\(:has\(main:is\(\.main-surface, \[data-app-shell-main-surface\], \[class\*=\"_MainContentSurface_\"\]\)\)\)[\s\S]{0,180}\[data-ds-part="main"\]/,
+    /:not\(:has\(main:is\(\.main-surface, \[data-app-shell-main-surface\], \[class\*=\"MainContentSurface\"\]\)\)\)[\s\S]{0,180}\[data-ds-part="main"\]/,
     "Core CSS must paint a validated generic main surface.",
   );
   assert.match(
     css,
-    /:not\(:has\(main:is\(\.main-surface, \[data-app-shell-main-surface\], \[class\*=\"_MainContentSurface_\"\]\)\)\)[\s\S]{0,120}\[data-ds-part="composer"\]/,
+    /:not\(:has\(main:is\(\.main-surface, \[data-app-shell-main-surface\], \[class\*=\"MainContentSurface\"\]\)\)\)[\s\S]{0,120}\[data-ds-part="composer"\]/,
     "Core CSS must style the validated generic composer.",
   );
   // Every home/project selector must stay behind the root skin gate.  A
@@ -991,6 +1056,61 @@ export async function runRendererRuntimeTest(assetRoot) {
   assert.equal(full.attrs.get("data-dream-task-mode"), "full");
   assert.equal(full.attrs.get("data-dream-art-task-mode"), "full");
 
+  // Wallpaper-only (renderer default): the official UI stays untouched — no
+  // wallpaper-derived accent, no --ds-* palette or font writes, no shape or
+  // layout tokens — while the wallpaper layers, surface transparency and the
+  // user alpha knob remain live. The CSS side mirrors this split through
+  // html[data-dream-ui], asserted in the static block above.
+  const wallpaper = makeFixture({ nativeAppearance: "dark" });
+  const wallpaperPayload = wallpaper
+    .payloadFor({ userTransparency: 40, colors: { panel: "#1e1e1e55" } })
+    .replace(',"ui":"full"', "");
+  vm.runInNewContext(wallpaperPayload, wallpaper.context);
+  const wallpaperState = wallpaper.window.__CODEX_DREAM_SKIN_STATE__;
+  assert.equal(wallpaper.attrs.get("data-dream-ui"), "wallpaper-only",
+    "A theme.json without ui must default to wallpaper-only.");
+  assert.equal(wallpaperState.ui, "wallpaper-only");
+  assert.equal(wallpaper.attrs.get("data-dream-skin"), "active");
+  for (const variable of [
+    "--ds-bg", "--ds-panel", "--ds-panel-2", "--ds-green", "--ds-lime", "--ds-cyan",
+    "--ds-purple", "--ds-text", "--ds-muted", "--ds-line", "--ds-on-accent",
+    "--ds-accent-rgb", "--ds-panel-rgb", "--ds-theme-color-accent", "--ds-theme-color-text",
+    "--ds-theme-font-family", "--ds-theme-font-scale", "--ds-theme-surface-radius",
+    "--ds-theme-surface-shadow", "--ds-theme-density-scale", "--ds-theme-motion-level",
+    "--dream-skin-name", "--dream-skin-tagline", "--dream-skin-quote",
+  ]) {
+    assert.equal(wallpaper.rootStyle.values.has(variable), false,
+      `${variable} must not be written in wallpaper-only mode`);
+  }
+  assert.equal(Number(wallpaper.rootStyle.values.get("--ds-user-surface-alpha")), 0.6,
+    "The user transparency knob stays live in wallpaper-only mode");
+  assert.equal(Number(wallpaper.rootStyle.values.get("--ds-upload-panel-alpha")), 0.6);
+  assert.equal(wallpaper.attrs.get("data-dream-upload-alpha"), "true");
+  assert.equal(wallpaper.partFixtures.sidebar.getAttribute("data-ds-part"), "sidebar",
+    "The Safe CSS part bridge stays available in wallpaper-only mode");
+  assert.ok(wallpaper.document.adoptedStyleSheets.length === 1);
+
+  const wallpaperVideo = makeFixture({ nativeAppearance: "dark" });
+  vm.runInNewContext(wallpaperVideo.payloadFor({
+    ui: "wallpaper-only",
+    media: { type: "video", mime: "video/mp4", size: 12 },
+  }), wallpaperVideo.context);
+  assert.equal(wallpaperVideo.attrs.get("data-dream-ui"), "wallpaper-only");
+  assert.equal(wallpaperVideo.videoElements.length, 1,
+    "The video wallpaper layer stays active in wallpaper-only mode");
+  assert.equal(wallpaperVideo.videoElements[0].parentElement, wallpaperVideo.document.body);
+  assert.equal(wallpaperVideo.rootStyle.values.has("--ds-green"), false,
+    "Video wallpaper sessions must not adopt a wallpaper-derived accent");
+
+  const explicitFull = makeFixture({ nativeAppearance: "dark" });
+  const explicitFullResult = vm.runInNewContext(
+    explicitFull.payloadFor({ ui: "full" }), explicitFull.context,
+  );
+  assert.equal(explicitFullResult.ui, "full");
+  assert.equal(explicitFull.attrs.get("data-dream-ui"), "full");
+  assert.equal(explicitFull.rootStyle.values.get("--ds-theme-surface-radius"), "12px",
+    "full mode keeps writing the reskin tokens");
+
   const landscape = makeFixture({ nativeAppearance: "dark" });
   vm.runInNewContext(landscape.payloadFor({
     artMetadata: { wide: false, aspect: "wide", focusX: 0.5, focusY: 0.5, taskMode: "ambient" },
@@ -1222,8 +1342,8 @@ export async function runRendererRuntimeTest(assetRoot) {
   predicates.flushTimers(100);
   assert.equal(predicateState.metrics.predicatePasses, beforePredicates,
     "Unrelated native scroll classes must not rescan structural selectors");
-  predicates.partFixtures.main.setAttribute("class", "_MainContentSurface_a scrolled");
-  predicateObserver.callback([{ type: "attributes", attributeName: "class", oldValue: "_MainContentSurface_a", target: predicates.partFixtures.main }]);
+  predicates.partFixtures.main.setAttribute("class", "MainContentSurfacea scrolled");
+  predicateObserver.callback([{ type: "attributes", attributeName: "class", oldValue: "MainContentSurfacea", target: predicates.partFixtures.main }]);
   predicateObserver.callback([{ type: "attributes", attributeName: "role", oldValue: null, target: predicates.partFixtures.home }]);
   predicates.flushTimers(100);
   assert.equal(predicateState.metrics.predicatePasses, beforePredicates,
@@ -1435,6 +1555,463 @@ export async function runRendererRuntimeTest(assetRoot) {
   assert.equal(posterCleanup.window.__CODEX_DREAM_SKIN_STATE__, undefined);
   assert.ok(posterCleanup.revoked.includes(cleanupBlobUrl),
     "Cleanup must revoke the pending media blob.");
+
+  // Wallpaper revival: a stalled wallpaper must recover on the next sync
+  // arrival (theme apply, resume, visibility, safety timer) instead of
+  // waiting for a reinjection. Three dead ends are exercised:
+  // 1. a scene stream whose first fetch failed (dead controller must not pin
+  //    the pipeline; the recovered host is picked up with bounded backoff),
+  // 2. an ended blob-file element (must be rebuilt and replayed),
+  // 3. a scene stream whose decode froze (currentTime stalled while playback
+  //    is expected must force a full stream restart).
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const makeStreamStub = (fixture) => {
+    const sources = [];
+    let fetchCalls = 0;
+    let mode = "down";
+    let delivered = false;
+    fixture.context.AbortController = function AbortController() {
+      return {
+        signal: { aborted: false },
+        abort() { this.signal.aborted = true; },
+      };
+    };
+    fixture.context.MediaSource = function MediaSource() {
+      const source = {
+        readyState: "open",
+        sourceBuffers: [],
+        listeners: {},
+        addEventListener(type, callback) {
+          (source.listeners[type] ||= []).push(callback);
+        },
+        removeEventListener() {},
+        endOfStream() { source.ended = true; },
+      };
+      source.addSourceBuffer = () => {
+        const listeners = {};
+        const buffer = {
+          updating: false,
+          buffered: { length: 0, start: () => 0 },
+          appendBuffer() {
+            source.appends = (source.appends || 0) + 1;
+            if (mode === "up-fail-append") {
+              buffer.updating = true;
+              setTimeout(() => {
+                buffer.updating = false;
+                for (const callback of [...(listeners.error || [])]) callback();
+              }, 5);
+            }
+          },
+          remove() {},
+          addEventListener(type, callback) {
+            (listeners[type] ||= []).push(callback);
+          },
+          removeEventListener(type, callback) {
+            listeners[type] = (listeners[type] || []).filter((item) => item !== callback);
+          },
+        };
+        source.sourceBuffers.push(buffer);
+        return buffer;
+      };
+      sources.push(source);
+      return source;
+    };
+    fixture.context.MediaSource.isTypeSupported = () => true;
+    fixture.context.fetch = async () => {
+      fetchCalls += 1;
+      if (mode === "down") throw new Error("scene stream unavailable");
+      const chunk = new fixture.context.Uint8Array([1, 2, 3, 4]);
+      return {
+        ok: true,
+        body: { getReader: () => ({
+          read: async () => {
+            if (mode === "up-end") return { done: true };
+            if (!delivered) {
+              delivered = true;
+              return { value: chunk, done: false };
+            }
+            return new Promise(() => {});
+          },
+          cancel: async () => {},
+        }) },
+      };
+    };
+    return {
+      get fetchCalls() { return fetchCalls; },
+      get mode() { return mode; },
+      set mode(value) { mode = value; delivered = false; },
+    };
+  };
+  const sceneStreamUrl =
+    "http://127.0.0.1:17866/1234567890abcdef1234567890abcdef/stream.mp4";
+  const streamTheme = {
+    media: {
+      type: "video",
+      streamUrl: sceneStreamUrl,
+      codec: "avc1.42c01f",
+      opacity: 1,
+    },
+  };
+
+  const streamRevival = makeFixture({ nativeAppearance: "dark" });
+  const revivalStub = makeStreamStub(streamRevival);
+  vm.runInNewContext(streamRevival.payloadFor(streamTheme), streamRevival.context);
+  const revivalState = streamRevival.window.__CODEX_DREAM_SKIN_STATE__;
+  const revivalVideo = streamRevival.videoElements[0];
+  assert.ok(revivalVideo, "A stream theme must stage a media element.");
+  const initialStreamSrc = revivalVideo.src;
+  await sleep(30);
+  assert.equal(revivalState.streamStats.status, "error",
+    "A failed first fetch must surface as a dead stream, not a silent stall.");
+  assert.equal(revivalStub.fetchCalls, 1);
+  revivalStub.mode = "up-hang";
+  await sleep(1600);
+  revivalState.ensure({ root: true });
+  await sleep(50);
+  assert.equal(revivalStub.fetchCalls, 2,
+    "A later sync must restart the dead scene stream once the host is back.");
+  assert.equal(revivalState.streamStats.status, "streaming");
+  assert.equal(revivalState.streamStats.chunks, 1);
+  assert.equal(revivalVideo.paused, false, "The restarted stream must be playing.");
+  assert.notEqual(revivalVideo.src, initialStreamSrc,
+    "The restart must reload the element with the fresh MediaSource blob.");
+  assert.ok(streamRevival.revoked.includes(initialStreamSrc),
+    "The dead pipeline blob must be revoked by the restart.");
+  // Frozen decode: the stream is alive by stats but the element stopped
+  // advancing. Warping the context clock past the stall window must force a
+  // full stream restart on the next arrival.
+  revivalVideo.currentTime = 7;
+  revivalState.ensure({ root: true });
+  vm.runInNewContext(
+    "Date.now = (() => { const real = Date.now.bind(Date); return () => real() + 30000; })()",
+    streamRevival.context,
+  );
+  const frozenSrc = revivalVideo.src;
+  revivalState.ensure({ root: true });
+  await sleep(50);
+  assert.equal(revivalStub.fetchCalls, 3,
+    "A frozen element while playback is expected must restart the stream.");
+  assert.notEqual(revivalVideo.src, frozenSrc,
+    "The frozen-decode restart must install a fresh MediaSource blob.");
+
+  const endedBlob = makeFixture({ nativeAppearance: "dark" });
+  vm.runInNewContext(endedBlob.payloadFor(
+    { media: { type: "video", mime: "video/mp4", size: 12 } },
+  ), endedBlob.context);
+  const endedState = endedBlob.window.__CODEX_DREAM_SKIN_STATE__;
+  assert.equal(endedState.beginMedia({ mime: "video/mp4", size: 12 }), true);
+  assert.equal(endedState.appendMedia(posterChunk), true);
+  assert.equal(endedState.commitMedia(), true);
+  const endedVideo = endedBlob.videoElements[0];
+  assert.equal(endedVideo.parentElement, endedBlob.document.body);
+  // A real ended element also reports paused; mirror that here.
+  endedVideo.ended = true;
+  endedVideo.paused = true;
+  endedState.ensure({ root: true });
+  assert.equal(endedVideo.parentElement, null,
+    "An ended blob element must be rebuilt instead of freezing the wallpaper.");
+  const replacementVideo = endedBlob.videoElements[1];
+  assert.equal(endedBlob.document.getElementById("codex-dream-skin-media"), replacementVideo);
+  assert.equal(replacementVideo.paused, false, "The rebuilt element must be playing.");
+  assert.equal(replacementVideo.loop, true);
+  assert.equal(replacementVideo.src, endedState.mediaUrl,
+    "The rebuilt element must reload the same transferred media blob.");
+  assert.ok(!endedBlob.revoked.includes(endedState.mediaUrl),
+    "The media blob must survive the element rebuild.");
+
+  // Direct fallback: newer Codex builds reject the fMP4 fragments in the
+  // SourceBuffer even though the element decodes the same stream natively.
+  // The first append failure must hand the stream URL to the media element
+  // and keep streamStats growing from resource timing plus decode progress.
+  const directFallback = makeFixture({ nativeAppearance: "dark" });
+  const directStub = makeStreamStub(directFallback);
+  const directEntries = [];
+  directFallback.context.performance = {
+    now: () => 1,
+    getEntriesByType: (type) => (type === "resource" ? directEntries : []),
+  };
+  directStub.mode = "up-fail-append";
+  vm.runInNewContext(directFallback.payloadFor(streamTheme), directFallback.context);
+  const directState = directFallback.window.__CODEX_DREAM_SKIN_STATE__;
+  const directVideo = directFallback.videoElements[0];
+  assert.ok(directVideo, "The direct fallback must reuse the staged media element.");
+  assert.notEqual(directVideo.src, sceneStreamUrl,
+    "Playback must start through the MSE blob before any append failure.");
+  await sleep(20);
+  directFallback.flushTimers();
+  await sleep(30);
+  assert.equal(directState.streamStats.status, "direct",
+    "A SourceBuffer append failure must switch the session to direct playback.");
+  assert.equal(directVideo.src, sceneStreamUrl,
+    "The direct fallback must point the element at the stream URL.");
+  assert.equal(directVideo.paused, false, "The direct fallback must be playing.");
+  assert.equal(directState.mediaUrl, sceneStreamUrl,
+    "The stream URL must take over the mediaUrl slot in direct mode.");
+  assert.equal(directStub.fetchCalls, 1,
+    "Direct playback must not loop back into MSE fetches.");
+  directEntries.push({ name: sceneStreamUrl, transferSize: 4096 });
+  directState.ensure({ root: true });
+  assert.equal(directState.streamStats.bytes, 4096,
+    "Direct-mode bytes must grow from the stream URL's resource timing entry.");
+  directEntries.push({ name: sceneStreamUrl, transferSize: 8192 });
+  directVideo.currentTime = 1;
+  directState.ensure({ root: true });
+  assert.ok(directState.streamStats.bytes > 8192,
+    "Direct-mode bytes must keep growing while the element advances.");
+  assert.ok(directState.streamStats.chunks >= 2,
+    "Direct-mode liveness samples must accumulate into the chunk counter.");
+  assert.ok(Number.isFinite(directState.streamStats.lastAppendAt),
+    "Direct-mode liveness must keep the verifier's freshness evidence.");
+
+  // Codex 26.1106 never emits resource-timing entries for media element
+  // requests, so direct liveness must be provable from the element alone.
+  // Fixture 1: empty timing + a progressing element must survive far beyond
+  // the old evidence window without a single recycle.
+  const emptyTiming = makeFixture({ nativeAppearance: "dark" });
+  const emptyStub = makeStreamStub(emptyTiming);
+  emptyTiming.context.performance = { now: () => 1, getEntriesByType: () => [] };
+  emptyStub.mode = "up-fail-append";
+  vm.runInNewContext(emptyTiming.payloadFor(streamTheme), emptyTiming.context);
+  const emptyState = emptyTiming.window.__CODEX_DREAM_SKIN_STATE__;
+  const emptyVideo = emptyTiming.videoElements[0];
+  assert.ok(emptyVideo, "The direct session must stage a media element.");
+  await sleep(20);
+  emptyTiming.flushTimers();
+  await sleep(30);
+  assert.equal(emptyState.streamStats.status, "direct");
+  assert.equal(emptyVideo.src, sceneStreamUrl);
+  emptyVideo.readyState = 4;
+  emptyVideo.duration = 5.5;
+  emptyVideo.currentTime = 1;
+  emptyState.ensure({ root: true });
+  const emptyStats = emptyState.streamStats;
+  assert.ok(emptyStats.chunks >= 1,
+    "Element progress must credit chunks with zero resource-timing entries.");
+  const warpClock = (fixture, delta) => vm.runInNewContext(
+    `Date.now = ((real) => () => real() + ${delta})(Date.now.bind(Date))`,
+    fixture.context,
+  );
+  for (const tick of [1.5, 2.5, 3.5]) {
+    warpClock(emptyTiming, 25000);
+    emptyVideo.currentTime = tick;
+    emptyState.ensure({ root: true });
+  }
+  assert.equal(emptyState.streamStats, emptyStats,
+    "A progressing element with zero resource-timing entries must never be judged dead.");
+  assert.equal(emptyTiming.document.getElementById("codex-dream-skin-media"), emptyVideo,
+    "Element liveness evidence must keep the wallpaper element in place.");
+  assert.equal(emptyVideo.src, sceneStreamUrl,
+    "Element liveness evidence must keep the direct source assigned.");
+  assert.equal(emptyStub.fetchCalls, 1,
+    "Direct liveness must not loop restarts while the element progresses.");
+
+  // Fixture 2: first-buffer fairness. A silent fresh load (currentTime 0,
+  // readyState < 2, no error) survives its fair load window, any readyState
+  // movement refreshes that window, and only a fully silent window recycles
+  // the pipeline (element kept, src reassigned, still no MSE fetch).
+  const loadGrace = makeFixture({ nativeAppearance: "dark" });
+  const loadStub = makeStreamStub(loadGrace);
+  loadGrace.context.performance = { now: () => 1, getEntriesByType: () => [] };
+  loadStub.mode = "up-fail-append";
+  vm.runInNewContext(loadGrace.payloadFor(streamTheme), loadGrace.context);
+  const loadState = loadGrace.window.__CODEX_DREAM_SKIN_STATE__;
+  const loadVideo = loadGrace.videoElements[0];
+  await sleep(20);
+  loadGrace.flushTimers();
+  await sleep(30);
+  assert.equal(loadState.streamStats.status, "direct");
+  loadVideo.paused = true; // playback still pending while the buffer fills
+  loadVideo.duration = NaN; // metadata not parsed yet during the first load
+  const loadStats = loadState.streamStats;
+  warpClock(loadGrace, 10000);
+  loadState.ensure({ root: true });
+  assert.equal(loadState.streamStats, loadStats,
+    "A silent first-buffer load must survive its fair window.");
+  loadVideo.readyState = 1; // any readyState movement refreshes the window
+  loadState.ensure({ root: true });
+  assert.equal(loadState.streamStats, loadStats,
+    "readyState movement during loading must count as live evidence.");
+  warpClock(loadGrace, 25000);
+  loadState.ensure({ root: true });
+  assert.notEqual(loadState.streamStats, loadStats,
+    "A fully silent load window must eventually recycle the stalled pipeline.");
+  assert.equal(loadVideo.src, sceneStreamUrl,
+    "The recycle must reassign the direct source on the element.");
+  assert.equal(loadStub.fetchCalls, 1,
+    "Direct restarts must not loop back into MSE fetches.");
+
+  // Fixture 3: a stopped or otherwise cleared direct session must be revived.
+  // The next sync arrival reassigns mediaUrl + src and restarts playback
+  // instead of leaving a source-less element pinned forever (the 26.1106
+  // white-screen death spiral).
+  const recovery = makeFixture({ nativeAppearance: "dark" });
+  const recoveryStub = makeStreamStub(recovery);
+  recovery.context.performance = { now: () => 1, getEntriesByType: () => [] };
+  recoveryStub.mode = "up-fail-append";
+  vm.runInNewContext(recovery.payloadFor(streamTheme), recovery.context);
+  const recoveryState = recovery.window.__CODEX_DREAM_SKIN_STATE__;
+  const recoveryVideo = recovery.videoElements[0];
+  await sleep(20);
+  recovery.flushTimers();
+  await sleep(30);
+  assert.equal(recoveryState.streamStats.status, "direct");
+  assert.equal(recoveryVideo.src, sceneStreamUrl);
+  recoveryVideo.readyState = 4;
+  recoveryVideo.currentTime = 2;
+  recoveryState.ensure({ root: true });
+  recoveryState.stopStream();
+  assert.equal(recoveryState.mediaUrl, null, "stopStream must clear the direct source.");
+  assert.equal(recoveryVideo.src, "", "stopStream must clear the element source.");
+  assert.equal(recoveryVideo.paused, true);
+  const preRestartStats = recoveryState.streamStats;
+  recoveryState.ensure({ root: true });
+  assert.equal(recoveryState.mediaUrl, sceneStreamUrl,
+    "The next sync arrival must reassign the cleared direct source.");
+  assert.equal(recoveryVideo.src, sceneStreamUrl,
+    "Restart must reload the stream URL into the element.");
+  assert.equal(recoveryVideo.paused, false, "Restart must call play() on the revived element.");
+  assert.notEqual(recoveryState.streamStats, preRestartStats,
+    "The revive path must run through a fresh direct controller.");
+  assert.equal(recoveryStub.fetchCalls, 1,
+    "Direct revival must not loop back into MSE fetches.");
+
+  // Regression for the 26.1106 mid-session death: every revival driver (the
+  // 30s safety timer, the visibilitychange handler, the MutationObservers)
+  // belonged to one install closure, and a Manager-side re-apply tore that
+  // install down without its successor completing — with the page visible,
+  // nothing ever called syncStreamState again, so the revive loop stayed
+  // silent for minutes. Two page-level guards close the hole:
+  // 1. a heartbeat interval no cleanup can clear, reviving a killed stream
+  //    within one sync cycle, and
+  // 2. resurrection of the last known state when a successor dies mid-install.
+  const heartbeatIntervalsOf = (fixture) =>
+    [...fixture.intervals.values()].filter((entry) => entry.delay === 10000);
+
+  // Guard 1: mid-air kill while visible — one heartbeat tick (one sync
+  // cycle) must restore the direct source and playback without anyone
+  // calling ensure by hand.
+  const midair = makeFixture({ nativeAppearance: "dark" });
+  const midairStub = makeStreamStub(midair);
+  midair.context.performance = { now: () => 1, getEntriesByType: () => [] };
+  midairStub.mode = "up-fail-append";
+  vm.runInNewContext(midair.payloadFor(streamTheme), midair.context);
+  const midairState = midair.window.__CODEX_DREAM_SKIN_STATE__;
+  const midairVideo = midair.videoElements[0];
+  await sleep(20);
+  midair.flushTimers();
+  await sleep(30);
+  assert.equal(midairState.streamStats.status, "direct");
+  midairVideo.readyState = 4;
+  midairVideo.currentTime = 3;
+  midairState.ensure({ root: true });
+  const midairHeartbeats = heartbeatIntervalsOf(midair);
+  assert.equal(midairHeartbeats.length, 1,
+    "Exactly one page-level heartbeat must be armed per page.");
+  assert.ok(midairHeartbeats[0].delay <= 30000,
+    "Heartbeat cadence plus the bounded restart backoff must stay inside the 30s recovery SLA.");
+  // External kill while the page stays visible: controller stopped, element
+  // source wiped — exactly the observed incident state.
+  midairState.stopStream();
+  assert.equal(midairState.mediaUrl, null);
+  assert.equal(midairVideo.src, "");
+  assert.equal(midairVideo.paused, true);
+  const preHeartbeatStats = midairState.streamStats;
+  midairHeartbeats[0].callback();
+  assert.equal(midairState.mediaUrl, sceneStreamUrl,
+    "One heartbeat tick must reassign the cleared direct source.");
+  assert.equal(midairVideo.src, sceneStreamUrl,
+    "One heartbeat tick must reload the stream URL into the element.");
+  assert.equal(midairVideo.paused, false,
+    "One heartbeat tick must call play() on the revived element.");
+  assert.notEqual(midairState.streamStats, preHeartbeatStats,
+    "Heartbeat revival must run through a fresh direct controller.");
+  assert.equal(midairStub.fetchCalls, 1,
+    "Heartbeat revival must stay in direct mode.");
+
+  // Guard 2: the incident's root cause — a successor install ran the live
+  // install's cleanup at its top and then died before publishing state or
+  // arming its own drivers (the 13:34:32 second SceneViewer / applyToSession
+  // re-run). The heartbeat's last-known state must revive the previous
+  // wallpaper, and a later successful install must take over cleanly.
+  const race = makeFixture({ nativeAppearance: "dark" });
+  const raceStub = makeStreamStub(race);
+  race.context.performance = { now: () => 1, getEntriesByType: () => [] };
+  raceStub.mode = "up-fail-append";
+  vm.runInNewContext(race.payloadFor(streamTheme), race.context);
+  const raceState = race.window.__CODEX_DREAM_SKIN_STATE__;
+  const raceVideo = race.videoElements[0];
+  await sleep(20);
+  race.flushTimers();
+  await sleep(30);
+  assert.equal(raceState.streamStats.status, "direct");
+  raceVideo.readyState = 4;
+  raceVideo.currentTime = 2;
+  const raceHeartbeats = heartbeatIntervalsOf(race);
+  assert.equal(raceHeartbeats.length, 1,
+    "Reinstalling must not stack heartbeat intervals.");
+  raceHeartbeats[0].callback(); // healthy tick: the heartbeat captures the live state
+  // The successor install runs the live install's cleanup at its very top,
+  // then dies during its own early setup (art blob build) — before it can
+  // publish state, arm its safety timer or register its handlers. Any late
+  // crash (between state publication and driver registration) is covered by
+  // the same heartbeat through guard 1.
+  const originalCreateObjectURL = race.context.URL.createObjectURL;
+  let sabotageBlob = false;
+  race.context.URL.createObjectURL = () => {
+    if (sabotageBlob) throw new Error("simulated mid-install crash");
+    return originalCreateObjectURL();
+  };
+  sabotageBlob = true;
+  assert.throws(() => vm.runInNewContext(race.payloadFor(streamTheme), race.context),
+    /simulated mid-install crash/,
+    "The successor install must die after cleanup, before publishing state.");
+  sabotageBlob = false;
+  race.context.URL.createObjectURL = originalCreateObjectURL;
+  assert.equal(race.window.__CODEX_DREAM_SKIN_STATE__, undefined,
+    "The crashed successor must not have published renderer state.");
+  assert.equal(race.window.__CODEX_DREAM_SKIN_DISABLED__, false,
+    "The successor reset the disabled flag before crashing.");
+  assert.equal(race.attrs.get("data-dream-skin"), undefined,
+    "The successor's cleanup stripped the skin markers.");
+  assert.equal(race.document.getElementById("codex-dream-skin-media"), null,
+    "The successor's cleanup removed the wallpaper element.");
+  raceHeartbeats[0].callback();
+  const resurrectedVideo = race.document.getElementById("codex-dream-skin-media");
+  assert.ok(resurrectedVideo,
+    "The heartbeat must resurrect the previous install's wallpaper element.");
+  assert.equal(resurrectedVideo.parentElement, race.document.body,
+    "The resurrected wallpaper element must be reattached to the body.");
+  assert.equal(race.attrs.get("data-dream-skin"), "active",
+    "The resurrected install must restore its root markers.");
+  assert.equal(resurrectedVideo.src, sceneStreamUrl,
+    "The resurrected install must reassign the direct source.");
+  assert.equal(resurrectedVideo.paused, false,
+    "The resurrected install must be playing again.");
+  // A later successful install publishes state and the heartbeat switches to
+  // driving it, stopping any pipeline the resurrected closure still owned.
+  raceStub.mode = "up-fail-append"; // re-arm the stub for the fresh install
+  vm.runInNewContext(race.payloadFor(streamTheme), race.context);
+  const successorState = race.window.__CODEX_DREAM_SKIN_STATE__;
+  assert.ok(successorState && successorState !== raceState,
+    "A completed successor must own renderer state again.");
+  await sleep(20);
+  race.flushTimers();
+  await sleep(30);
+  const successorVideo = race.document.getElementById("codex-dream-skin-media");
+  assert.equal(successorVideo.src, sceneStreamUrl,
+    "The successor must settle into direct playback like any fresh install.");
+  const rootPassesBefore = successorState.metrics.rootPasses;
+  raceHeartbeats[0].callback();
+  assert.ok(successorState.metrics.rootPasses > rootPassesBefore,
+    "The heartbeat must drive the new owner once it is published.");
+  assert.equal(successorVideo.src, sceneStreamUrl);
+  // Pause stays respected: cleanup must silence the heartbeat for good.
+  assert.equal(successorState.cleanup(), true);
+  assert.equal(race.attrs.get("data-dream-skin"), undefined);
+  raceHeartbeats[0].callback();
+  assert.equal(race.attrs.get("data-dream-skin"), undefined,
+    "A paused page must not be resurrected by the heartbeat.");
+  assert.equal(race.window.__CODEX_DREAM_SKIN_STATE__, undefined);
 
   console.log(`PASS: unified renderer runtime (${path.basename(assetRoot)})`);
 }

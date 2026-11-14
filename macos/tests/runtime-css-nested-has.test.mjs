@@ -46,10 +46,12 @@ for (const file of files) {
       ? "__DREAM_SELECTOR_HOME_ROUTE__ __DREAM_SELECTOR_HOME_SUGGESTIONS__"
       : '[role="main"]:has([data-testid="home-icon"]) .group\\/home-suggestions';
     const labels = ':is([class~="text-token-text-primary"], [class~="text-default"])';
-    const selector = `html[data-dream-skin="active"] ${home} button ${labels}`;
+    // Suggestion-button text/icons are part of the reskin, so the rule lives
+    // behind the full-mode UI gate (wallpaper-only keeps native styling).
+    const selector = `html[data-dream-skin="active"][data-dream-ui="full"] ${home} button ${labels}`;
     assert.ok(css.includes(`${selector} {\n  color: var(--ds-text) !important;\n}`),
       "Both observed label classes must receive theme text color only inside Home suggestion buttons.");
-    const iconSelector = `html[data-dream-skin="active"] ${home} button svg`;
+    const iconSelector = `html[data-dream-skin="active"][data-dream-ui="full"] ${home} button svg`;
     const iconRule = css.slice(css.indexOf(`${iconSelector} {`)).split("}")[0];
     assert.ok(css.includes(`${iconSelector} {`));
     assert.match(iconRule, /color:\s*var\(--ds-accent\)\s*!important;/,
@@ -58,10 +60,16 @@ for (const file of files) {
 
   test(`base skin preserves native body fonts in ${file}`, () => {
     const css = readFileSync(join(root, file), "utf8");
-    const bodyRule = css.match(/html\[data-dream-skin="active"\] body\s*\{([^}]*)\}/);
-    assert.ok(bodyRule, "The base body rule must remain present.");
-    assert.doesNotMatch(bodyRule[1], /\bfont(?:-family)?\s*:/i,
-      "The base skin must not override native UI or inherited code fonts (#399).");
+    // Both UI modes may paint the body (full palette / wallpaper-only art),
+    // but neither may override native fonts (#399).
+    for (const bodyRule of [
+      css.match(/html\[data-dream-skin="active"\]\[data-dream-ui="full"\] body\s*\{([^}]*)\}/),
+      css.match(/html\[data-dream-skin="active"\]\[data-dream-ui="wallpaper-only"\] body\s*\{([^}]*)\}/),
+    ]) {
+      assert.ok(bodyRule, "The base body rule must remain present.");
+      assert.doesNotMatch(bodyRule[1], /\bfont(?:-family)?\s*:/i,
+        "The base skin must not override native UI or inherited code fonts (#399).");
+    }
   });
 
   test(`no nested :has() in ${file}`, () => {
@@ -74,7 +82,7 @@ for (const file of files) {
     const css = readFileSync(join(root, file), "utf8");
     const selectorToken = file.startsWith("runtime/")
       ? "__DREAM_SELECTOR_SHELL_MAIN__:not\\(:has\\(__DREAM_SELECTOR_HOME_ROUTE_CSS__\\)\\) __DREAM_SELECTOR_MARKDOWN__"
-      : "main:is\\(\\.main-surface, \\[data-app-shell-main-surface\\], \\[class\\*=\"_MainContentSurface_\"\\]\\):not\\(:has\\(\\[role=\"main\"\\]\\)\\) \\[class\\*=\"_markdown\"\\]";
+      : "main:is\\(\\.main-surface, \\[data-app-shell-main-surface\\], \\[class\\*=\"MainContentSurface\"\\]\\):not\\(:has\\(\\[role=\"main\"\\]\\)\\) \\[class\\*=\"_markdown\"\\]";
     const fullMode = ':is\\([^)]*\\[data-dream-task-mode="full"\\][^)]*\\[data-dream-art-task-mode="full"\\][^)]*\\)\\[data-dream-art-wide="true"\\]';
     const markdownRule = new RegExp(`${fullMode}\\s*\\n?\\s*${selectorToken}\\s*\\{\\s*\\n?\\s*color:\\s*var\\(--ds-text\\)\\s*!important;`);
     const lightShadowRule = new RegExp(`\\[data-dream-shell="light"\\]${fullMode}\\s*\\n?\\s*${selectorToken}\\s*\\{\\s*\\n?\\s*text-shadow:`);

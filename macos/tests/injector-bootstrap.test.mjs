@@ -8,7 +8,7 @@ import { cleanupExcludedSurface, earlyPayloadFor } from "../scripts/injector.mjs
 const here = path.dirname(fileURLToPath(import.meta.url));
 const injectorPath = path.resolve(here, "../scripts/injector.mjs");
 const source = await fs.readFile(injectorPath, "utf8");
-const shellSelector = 'main:is(.main-surface, [data-app-shell-main-surface], [class*="_MainContentSurface_"])';
+const shellSelector = 'main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"])';
 
 function createFixture() {
   const domReady = [];
