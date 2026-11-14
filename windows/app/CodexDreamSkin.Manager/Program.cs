@@ -10,6 +10,14 @@ internal static class Program
   [STAThread]
   private static int Main(string[] args)
   {
+    // PerMonitorV2 must be active before the first window (including the
+    // single-instance notice below) so text and layout render natively at any
+    // DPI. The application manifest is the primary declaration; this call is
+    // the fallback when the manifest is stripped or the host ignores it.
+    Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
+    Application.EnableVisualStyles();
+    Application.SetCompatibleTextRenderingDefault(false);
+
     using var mutex = new Mutex(true, MutexName, out var createdNew);
     if (!createdNew && !args.Contains("--self-test", StringComparer.OrdinalIgnoreCase))
     {
@@ -30,10 +38,6 @@ internal static class Program
       {
         return SelfTest.Run(runtime);
       }
-
-      Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
-      Application.EnableVisualStyles();
-      Application.SetCompatibleTextRenderingDefault(false);
 
       var settings = new SettingsStore();
       var service = new DreamSkinService(runtime);

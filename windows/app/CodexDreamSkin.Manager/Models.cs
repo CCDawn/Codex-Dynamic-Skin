@@ -91,7 +91,8 @@ internal sealed record DreamSkinStatus(
   string? ActiveTheme,
   string? MediaPath,
   WallpaperKind? MediaKind,
-  int RevealPercent)
+  int RevealPercent,
+  int? PanelTransparencyPercent = null)
 {
   public string Summary => Paused
     ? CodexRunning

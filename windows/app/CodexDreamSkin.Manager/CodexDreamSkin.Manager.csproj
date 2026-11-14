@@ -7,8 +7,12 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- WFAC010: the manifest is the primary PerMonitorV2 declaration by design;
+         Application.SetHighDpiMode in Program.cs stays as an idempotent fallback. -->
+    <NoWarn>$(NoWarn);WFAC010</NoWarn>
     <AssemblyName>CodexDreamSkinManager</AssemblyName>
     <RootNamespace>CodexDreamSkin.Manager</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
     <Version>1.7.3</Version>
     <Product>Codex 动态壁纸</Product>
     <Description>One-click wallpaper manager for the official Codex Windows app.</Description>
@@ -24,8 +28,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="..\..\assets\blank.png" LogicalName="DreamSkin.Engine.assets.blank.png" />
     <EmbeddedResource Include="..\..\assets\compat-profile-client.mjs" LogicalName="DreamSkin.Engine.assets.compat-profile-client.mjs" />
-    <EmbeddedResource Include="..\..\assets\dream-reference.jpg" LogicalName="DreamSkin.Engine.assets.dream-reference.jpg" />
     <EmbeddedResource Include="..\..\assets\dream-skin.css" LogicalName="DreamSkin.Engine.assets.dream-skin.css" />
     <EmbeddedResource Include="..\..\assets\renderer-inject.js" LogicalName="DreamSkin.Engine.assets.renderer-inject.js" />
     <EmbeddedResource Include="..\..\assets\safe-css-validator.mjs" LogicalName="DreamSkin.Engine.assets.safe-css-validator.mjs" />

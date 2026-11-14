@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Drawing.Drawing2D;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows.Forms.Integration;
 using WpfMediaElement = System.Windows.Controls.MediaElement;
@@ -31,6 +32,7 @@ internal sealed class MainForm : Form
   private readonly System.Windows.Forms.Timer _searchTimer = new() { Interval = 350 };
   private readonly NotifyIcon _trayIcon;
   private readonly Icon _appIcon;
+  private readonly ToolTip _toolTip = new();
 
   private readonly FlowLayoutPanel _libraryFlow = new();
   private readonly TextBox _searchBox = new();
@@ -46,6 +48,8 @@ internal sealed class MainForm : Form
   private readonly Button _restoreButton = new();
   private readonly TrackBar _revealSlider = new();
   private readonly Label _revealLabel = new();
+  private readonly TrackBar _panelSlider = new();
+  private readonly Label _panelLabel = new();
   private readonly Label _selectionTitle = new();
   private readonly Label _selectionMeta = new();
   private readonly Label _messageLabel = new();
@@ -83,6 +87,7 @@ internal sealed class MainForm : Form
     SetDarkTitleBar(Handle);
 
     BuildLayout();
+    ApplyHighDpiScaling();
     _service.ConfirmCodexRestart = ConfirmCodexRestart;
     _trayIcon = BuildTrayIcon();
     _statusTimer.Tick += (_, _) => RefreshStatus();
@@ -127,6 +132,7 @@ internal sealed class MainForm : Form
       _libraryLoad?.Cancel();
       _statusTimer.Dispose();
       _searchTimer.Dispose();
+      _toolTip.Dispose();
       StopVideoPreview();
       _trayIcon.Dispose();
       _appIcon.Dispose();
@@ -146,47 +152,59 @@ internal sealed class MainForm : Form
       BackColor = Surface,
       Padding = new Padding(26, 14, 22, 12),
     };
+    // TableLayoutPanel replaces the hand-coded Right-anchored coordinates that
+    // broke at high DPI: absolute column widths still scale with AutoScaleMode,
+    // and the brand cell absorbs all remaining space.
+    var headerTable = new TableLayoutPanel
+    {
+      Dock = DockStyle.Fill,
+      ColumnCount = 4,
+      RowCount = 1,
+      BackColor = Surface,
+    };
+    headerTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+    headerTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 18));
+    headerTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 288));
+    headerTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 158));
+    headerTable.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
     var brand = CreateLabel(DisplayName, 20f, FontStyle.Bold, TextPrimary);
     brand.AutoSize = true;
-    brand.Location = new Point(26, 24);
-    header.Controls.Add(brand);
+    brand.Anchor = AnchorStyles.Left;
+    headerTable.Controls.Add(brand, 0, 0);
 
     _statusDot.Size = new Size(10, 10);
     _statusDot.BackColor = Warning;
-    _statusDot.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-    _statusDot.Location = new Point(header.Width - 478, 39);
-    header.Controls.Add(_statusDot);
+    _statusDot.Anchor = AnchorStyles.Left;
+    headerTable.Controls.Add(_statusDot, 1, 0);
+
     _statusLabel.AutoSize = false;
-    _statusLabel.Size = new Size(280, 54);
+    _statusLabel.Dock = DockStyle.Fill;
     _statusLabel.ForeColor = TextMuted;
-    _statusLabel.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-    _statusLabel.Location = new Point(header.Width - 460, 17);
     _statusLabel.TextAlign = ContentAlignment.MiddleLeft;
     _statusLabel.Text = "正在读取状态\r\n当前壁纸：正在读取";
+    _statusLabel.AutoEllipsis = true;
     _statusLabel.AccessibleName = "Codex 和动态壁纸运行状态";
-    header.Controls.Add(_statusLabel);
-    header.Resize += (_, _) =>
-    {
-      _statusDot.Left = header.ClientSize.Width - 478;
-      _statusLabel.Left = header.ClientSize.Width - 460;
-      _startButton.Left = header.ClientSize.Width - _startButton.Width - 22;
-    };
+    headerTable.Controls.Add(_statusLabel, 2, 0);
 
     ConfigureButton(_startButton, "启动 / 重新应用", true);
     _startButton.Size = new Size(150, 42);
-    _startButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-    _startButton.Location = new Point(header.Width - 172, 23);
+    _startButton.Anchor = AnchorStyles.None;
     _startButton.AccessibleName = "启动或重新应用 Codex 动态壁纸";
     _startButton.Click += async (_, _) => await RunOperationAsync(
       "正在启动 Codex 动态壁纸…",
       () => _service.StartAsync(_lifetime.Token),
       "Codex 动态壁纸已启动。");
-    header.Controls.Add(_startButton);
+    headerTable.Controls.Add(_startButton, 3, 0);
+
+    header.Controls.Add(headerTable);
+    EnableDoubleBuffering(headerTable);
 
     var left = new Panel
     {
-      Dock = DockStyle.Left,
-      Width = 224,
+      Dock = DockStyle.Fill,
+      Margin = new Padding(0),
+      MinimumSize = new Size(180, 0),
       BackColor = Surface,
       Padding = new Padding(18, 22, 18, 18),
     };
@@ -201,6 +219,7 @@ internal sealed class MainForm : Form
     _libraryPathLabel.Text = CompactPath(_settings.LibraryPath);
     _libraryPathLabel.AutoEllipsis = true;
     _libraryPathLabel.AccessibleName = "当前壁纸库路径";
+    _toolTip.SetToolTip(_libraryPathLabel, _settings.LibraryPath);
     left.Controls.Add(_libraryPathLabel);
     left.Controls.SetChildIndex(_libraryPathLabel, 0);
 
@@ -297,14 +316,45 @@ internal sealed class MainForm : Form
       }
     };
     left.Controls.Add(_autoStartCheckBox);
+    EnableDoubleBuffering(left);
 
     var preview = BuildPreviewPanel();
     var library = BuildLibraryPanel();
 
-    Controls.Add(library);
-    Controls.Add(preview);
-    Controls.Add(left);
+    // Proportional three-pane root: sidebar and preview keep their design ratio
+    // (18%/28% ≈ the old 224px/360px at the 1280px design width), the library
+    // column takes the rest. MinimumSize floors keep the panes from collapsing.
+    var rootPane = new TableLayoutPanel
+    {
+      Dock = DockStyle.Fill,
+      ColumnCount = 3,
+      RowCount = 1,
+      BackColor = Canvas,
+    };
+    rootPane.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 18));
+    rootPane.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 54));
+    rootPane.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28));
+    rootPane.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+    rootPane.Controls.Add(left, 0, 0);
+    rootPane.Controls.Add(library, 1, 0);
+    rootPane.Controls.Add(preview, 2, 0);
+    EnableDoubleBuffering(rootPane);
+
+    Controls.Add(rootPane);
     Controls.Add(header);
+  }
+
+  private void ApplyHighDpiScaling()
+  {
+    // Assign AutoScaleDimensions AFTER every child exists: the assignment arms
+    // required-scaling, and the next layout pass scales the whole tree by
+    // CurrentAutoScaleDimensions / AutoScaleDimensions (2.0 at 200% DPI).
+    // Assigning it while the form is empty would consume the flag and leave
+    // every control unscaled.
+    AutoScaleMode = AutoScaleMode.Dpi;
+    AutoScaleDimensions = new SizeF(96F, 96F);
+    ResumeLayout(false);
+    PerformLayout();
   }
 
   private Control BuildLibraryPanel()
@@ -349,6 +399,8 @@ internal sealed class MainForm : Form
     _libraryFlow.BackColor = Canvas;
     _libraryFlow.Padding = new Padding(0, 8, 4, 12);
     _libraryFlow.AccessibleName = "壁纸列表";
+    _libraryFlow.Resize += (_, _) => LayoutLibraryCards();
+    EnableDoubleBuffering(_libraryFlow);
     panel.Controls.Add(_libraryFlow);
     panel.Controls.Add(top);
     return panel;
@@ -358,8 +410,9 @@ internal sealed class MainForm : Form
   {
     var panel = new Panel
     {
-      Dock = DockStyle.Right,
-      Width = 360,
+      Dock = DockStyle.Fill,
+      Margin = new Padding(0),
+      MinimumSize = new Size(285, 0),
       BackColor = Surface,
       Padding = new Padding(18, 20, 18, 16),
     };
@@ -415,6 +468,7 @@ internal sealed class MainForm : Form
     _selectionMeta.Dock = DockStyle.Top;
     _selectionMeta.Height = 48;
     _selectionMeta.ForeColor = TextMuted;
+    _selectionMeta.AutoEllipsis = true;
     _selectionMeta.Text = "支持 PNG、JPEG、WebP、MP4、WebM";
     panel.Controls.Add(_selectionMeta);
     panel.Controls.SetChildIndex(_selectionMeta, 0);
@@ -427,7 +481,7 @@ internal sealed class MainForm : Form
     panel.Controls.Add(_applyButton);
     panel.Controls.SetChildIndex(_applyButton, 0);
 
-    var revealHeading = CreateLabel("主题透明度", 10f, FontStyle.Bold, TextMuted);
+    var revealHeading = CreateLabel("主题透明度 · 壁纸浓度", 10f, FontStyle.Bold, TextMuted);
     revealHeading.Dock = DockStyle.Top;
     revealHeading.Height = 44;
     revealHeading.Padding = new Padding(0, 18, 0, 0);
@@ -437,6 +491,7 @@ internal sealed class MainForm : Form
     _revealLabel.Dock = DockStyle.Top;
     _revealLabel.Height = 28;
     _revealLabel.ForeColor = TextPrimary;
+    _revealLabel.AutoEllipsis = true;
     _revealLabel.Text = "100% · 完全透明（原始壁纸）";
     panel.Controls.Add(_revealLabel);
     panel.Controls.SetChildIndex(_revealLabel, 0);
@@ -449,12 +504,42 @@ internal sealed class MainForm : Form
     _revealSlider.TickFrequency = 10;
     _revealSlider.SmallChange = 5;
     _revealSlider.LargeChange = 10;
-    _revealSlider.AccessibleName = "主题透明度，零为完全不透明，一百为完全透明";
+    _revealSlider.AccessibleName = "主题透明度，壁纸浓度：零为壁纸不透出，一百为完全显示原始壁纸";
     _revealSlider.Scroll += (_, _) => UpdateRevealLabel();
     _revealSlider.MouseUp += async (_, _) => await CommitRevealAsync();
     _revealSlider.KeyUp += async (_, _) => await CommitRevealAsync();
     panel.Controls.Add(_revealSlider);
     panel.Controls.SetChildIndex(_revealSlider, 0);
+
+    var panelHeading = CreateLabel("面板透明度 · 界面磨玻璃", 10f, FontStyle.Bold, TextMuted);
+    panelHeading.Dock = DockStyle.Top;
+    panelHeading.Height = 44;
+    panelHeading.Padding = new Padding(0, 18, 0, 0);
+    panel.Controls.Add(panelHeading);
+    panel.Controls.SetChildIndex(panelHeading, 0);
+
+    _panelLabel.Dock = DockStyle.Top;
+    _panelLabel.Height = 28;
+    _panelLabel.ForeColor = TextPrimary;
+    _panelLabel.AutoEllipsis = true;
+    _panelLabel.Text = "未自定义 · 默认磨玻璃";
+    panel.Controls.Add(_panelLabel);
+    panel.Controls.SetChildIndex(_panelLabel, 0);
+
+    _panelSlider.Dock = DockStyle.Top;
+    _panelSlider.Height = 42;
+    _panelSlider.Minimum = 0;
+    _panelSlider.Maximum = 100;
+    _panelSlider.Value = 30;
+    _panelSlider.TickFrequency = 10;
+    _panelSlider.SmallChange = 5;
+    _panelSlider.LargeChange = 10;
+    _panelSlider.AccessibleName = "面板透明度，界面磨玻璃浓度：零为面板最实，一百为面板最透";
+    _panelSlider.Scroll += (_, _) => UpdatePanelLabel();
+    _panelSlider.MouseUp += async (_, _) => await CommitPanelTransparencyAsync();
+    _panelSlider.KeyUp += async (_, _) => await CommitPanelTransparencyAsync();
+    panel.Controls.Add(_panelSlider);
+    panel.Controls.SetChildIndex(_panelSlider, 0);
 
     _messageLabel.Dock = DockStyle.Bottom;
     _messageLabel.Height = 50;
@@ -462,7 +547,9 @@ internal sealed class MainForm : Form
     _messageLabel.TextAlign = ContentAlignment.MiddleLeft;
     _messageLabel.AutoEllipsis = true;
     _messageLabel.Text = "选择壁纸后可直接应用。";
+    _toolTip.SetToolTip(_messageLabel, _messageLabel.Text);
     panel.Controls.Add(_messageLabel);
+    EnableDoubleBuffering(panel);
     return panel;
   }
 
@@ -504,6 +591,7 @@ internal sealed class MainForm : Form
         var card = CreateWallpaperCard(item);
         _libraryFlow.Controls.Add(card);
       }
+      LayoutLibraryCards();
 
       _ = LoadCardThumbnailsAsync(items, token);
     }
@@ -531,7 +619,10 @@ internal sealed class MainForm : Form
     {
       token.ThrowIfCancellationRequested();
       var displayPath = WallpaperEngineReferenceCatalog.GetPreviewPath(item);
-      var thumbnail = await Task.Run(() => ShellThumbnail.Get(displayPath, 280, 170), token);
+      var scale = _libraryFlow.DeviceDpi / 96f;
+      var thumbnail = await Task.Run(
+        () => ShellThumbnail.Get(displayPath, ScalePx(280, scale), ScalePx(170, scale)),
+        token);
       if (thumbnail is null)
       {
         continue;
@@ -560,11 +651,14 @@ internal sealed class MainForm : Form
 
   private Panel CreateWallpaperCard(WallpaperItem item)
   {
+    // Cards are created at runtime (after the form has scaled), so their pixel
+    // constants must be scaled by the live DPI factor explicitly.
+    var scale = DeviceDpi / 96f;
     var card = new Panel
     {
-      Width = 226,
-      Height = 190,
-      Margin = new Padding(0, 0, 14, 14),
+      Width = ScalePx(226, scale),
+      Height = ScalePx(190, scale),
+      Margin = new Padding(0, 0, ScalePx(14, scale), ScalePx(14, scale)),
       BackColor = Surface,
       Cursor = Cursors.Hand,
       Tag = item,
@@ -573,23 +667,30 @@ internal sealed class MainForm : Form
     var image = new PictureBox
     {
       Dock = DockStyle.Top,
-      Height = 126,
+      Height = ScalePx(126, scale),
       BackColor = Color.FromArgb(9, 10, 13),
       SizeMode = PictureBoxSizeMode.Zoom,
       Cursor = Cursors.Hand,
     };
     card.Controls.Add(image);
     var title = CreateLabel(item.Name, 9.5f, FontStyle.Bold, TextPrimary);
-    title.Location = new Point(10, 136);
-    title.Size = new Size(204, 22);
+    title.Location = new Point(ScalePx(10, scale), ScalePx(136, scale));
+    title.Size = new Size(ScalePx(204, scale), ScalePx(22, scale));
     title.AutoEllipsis = true;
+    title.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
     title.Cursor = Cursors.Hand;
+    _toolTip.SetToolTip(title, item.Name);
     card.Controls.Add(title);
-    var meta = CreateLabel($"{item.SourceLabel} · {item.SizeLabel}", 8.5f, FontStyle.Regular, TextMuted);
-    meta.Location = new Point(10, 162);
-    meta.Size = new Size(204, 20);
+    var metaText = $"{item.SourceLabel} · {item.SizeLabel}";
+    var meta = CreateLabel(metaText, 8.5f, FontStyle.Regular, TextMuted);
+    meta.Location = new Point(ScalePx(10, scale), ScalePx(162, scale));
+    meta.Size = new Size(ScalePx(204, scale), ScalePx(20, scale));
+    meta.AutoEllipsis = true;
+    meta.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
     meta.Cursor = Cursors.Hand;
+    _toolTip.SetToolTip(meta, metaText);
     card.Controls.Add(meta);
+    EnableDoubleBuffering(card);
 
     void SelectCard(object? _, EventArgs __) => SelectWallpaper(item, card);
     card.Click += SelectCard;
@@ -627,6 +728,8 @@ internal sealed class MainForm : Form
     card.BackColor = Color.FromArgb(67, 43, 52);
     _selectionTitle.Text = item.Name;
     _selectionMeta.Text = $"{item.SourceLabel} · {item.Extension} · {item.SizeLabel}";
+    _toolTip.SetToolTip(_selectionTitle, item.Name);
+    _toolTip.SetToolTip(_selectionMeta, _selectionMeta.Text);
     _applyButton.Enabled = !_busy;
     ShowPreview(item);
   }
@@ -648,10 +751,11 @@ internal sealed class MainForm : Form
     {
       _videoHost.Visible = false;
       _previewImage.Visible = true;
+      var scale = DeviceDpi / 96f;
       _previewImage.Image = ShellThumbnail.Get(
         WallpaperEngineReferenceCatalog.GetPreviewPath(item),
-        720,
-        480);
+        ScalePx(720, scale),
+        ScalePx(480, scale));
     }
   }
 
@@ -674,12 +778,42 @@ internal sealed class MainForm : Form
     {
       return;
     }
+    var item = _selectedWallpaper;
+    string? previewFallbackMessage = null;
     await RunOperationAsync(
-      $"正在应用 {_selectedWallpaper.Name}…",
-      () => _selectedWallpaper.Source == WallpaperSource.WallpaperEngine
-        ? _service.ApplyWallpaperEngineAsync(_selectedWallpaper.Path, _lifetime.Token)
-        : _service.ApplyWallpaperAsync(_selectedWallpaper.Path, _lifetime.Token),
-      $"已应用：{_selectedWallpaper.Name}");
+      $"正在应用 {item.Name}…",
+      async () =>
+      {
+        try
+        {
+          if (item.Source == WallpaperSource.WallpaperEngine)
+          {
+            await _service.ApplyWallpaperEngineAsync(item.Path, _lifetime.Token);
+          }
+          else
+          {
+            await _service.ApplyWallpaperAsync(item.Path, _lifetime.Token);
+          }
+        }
+        catch (Exception exception) when (
+          item.Source == WallpaperSource.WallpaperEngine &&
+          item.Kind == WallpaperKind.Scene &&
+          exception is not OperationCanceledException)
+        {
+          await _service.ApplyWallpaperEngineSceneFallbackAsync(item.Path, exception, _lifetime.Token);
+          previewFallbackMessage = $"{exception.Message} 已回退应用该场景的静态预览图。";
+        }
+      },
+      $"已应用：{item.Name}");
+    if (previewFallbackMessage is not null)
+    {
+      MessageBox.Show(
+        this,
+        previewFallbackMessage,
+        DisplayName,
+        MessageBoxButtons.OK,
+        MessageBoxIcon.Warning);
+    }
     StopVideoPreview();
     _videoHost.Visible = false;
   }
@@ -695,6 +829,21 @@ internal sealed class MainForm : Form
         0 => "主题已完全不透明。",
         100 => "主题已完全透明，正在显示原始壁纸画面。",
         _ => $"主题透明度已设为 {value}%。"
+      },
+      refreshLibrary: false);
+  }
+
+  private async Task CommitPanelTransparencyAsync()
+  {
+    var value = _panelSlider.Value;
+    await RunOperationAsync(
+      $"正在设置面板透明度 {value}%…",
+      () => _service.SetPanelTransparencyAsync(value, _lifetime.Token),
+      value switch
+      {
+        0 => "面板已调成最实（磨玻璃最浓）。",
+        100 => "面板已调成最透（磨玻璃最淡）。",
+        _ => $"面板透明度已设为 {value}%。"
       },
       refreshLibrary: false);
   }
@@ -849,6 +998,7 @@ internal sealed class MainForm : Form
     _settings.LibraryPath = Path.GetFullPath(dialog.SelectedPath);
     _settingsStore.Save(_settings);
     _libraryPathLabel.Text = CompactPath(_settings.LibraryPath);
+    _toolTip.SetToolTip(_libraryPathLabel, _settings.LibraryPath);
     await ReloadLibraryAsync();
   }
 
@@ -917,6 +1067,7 @@ internal sealed class MainForm : Form
     var status = _service.GetStatus();
     _pauseRequested = status.Paused;
     _statusLabel.Text = $"{status.Summary}\r\n当前壁纸：{status.CurrentWallpaperLabel}";
+    _toolTip.SetToolTip(_statusLabel, $"{status.Summary}；当前壁纸：{status.CurrentWallpaperLabel}");
     _statusDot.BackColor = status.Paused
       ? Warning
       : status.WatcherRunning
@@ -931,6 +1082,11 @@ internal sealed class MainForm : Form
       _revealSlider.Value = Math.Clamp(status.RevealPercent, 0, 100);
       UpdateRevealLabel();
     }
+    if (!_panelSlider.Focused)
+    {
+      _panelSlider.Value = Math.Clamp(status.PanelTransparencyPercent ?? 30, 0, 100);
+      UpdatePanelLabel(status.PanelTransparencyPercent is null);
+    }
     _trayIcon.Text = $"{DisplayName} · {status.Summary}";
   }
 
@@ -942,6 +1098,18 @@ internal sealed class MainForm : Form
       100 => "100% · 完全透明（原始壁纸）",
       var value => $"{value}% · 壁纸逐步透出"
     };
+    _toolTip.SetToolTip(_revealLabel, _revealLabel.Text);
+  }
+
+  private void UpdatePanelLabel(bool usingDefault = false)
+  {
+    _panelLabel.Text = usingDefault ? "未自定义 · 默认磨玻璃" : _panelSlider.Value switch
+    {
+      0 => "0% · 面板最实（磨玻璃最浓）",
+      100 => "100% · 面板最透（磨玻璃最淡）",
+      var value => $"{value}% · 界面磨玻璃浓度"
+    };
+    _toolTip.SetToolTip(_panelLabel, _panelLabel.Text);
   }
 
   private void SetBusy(bool busy)
@@ -954,6 +1122,7 @@ internal sealed class MainForm : Form
     _wallpaperEngineButton.Enabled = !busy;
     _applyButton.Enabled = !busy && _selectedWallpaper is not null;
     _revealSlider.Enabled = !busy;
+    _panelSlider.Enabled = !busy;
     _searchBox.Enabled = !busy;
     UseWaitCursor = busy;
   }
@@ -962,6 +1131,7 @@ internal sealed class MainForm : Form
   {
     _messageLabel.Text = message;
     _messageLabel.ForeColor = error ? Color.FromArgb(246, 128, 128) : TextMuted;
+    _toolTip.SetToolTip(_messageLabel, message);
   }
 
   private void ShowError(Exception exception)
@@ -1045,6 +1215,8 @@ internal sealed class MainForm : Form
     _applyButton.Enabled = false;
     _selectionTitle.Text = "请选择一张壁纸";
     _selectionMeta.Text = "支持 PNG、JPEG、WebP、MP4、WebM";
+    _toolTip.SetToolTip(_selectionTitle, null);
+    _toolTip.SetToolTip(_selectionMeta, null);
     _previewImage.Image?.Dispose();
     _previewImage.Image = null;
     foreach (Control control in _libraryFlow.Controls)
@@ -1056,6 +1228,52 @@ internal sealed class MainForm : Form
       control.Dispose();
     }
     _libraryFlow.Controls.Clear();
+  }
+
+  /// <summary>
+  ///  Reflows the wallpaper grid: the column count adapts to the available
+  ///  width using the design-width card (210px at 96 DPI) as the minimum
+  ///  threshold, and every row then divides the width equally so no dead
+  ///  space is left on the right edge.
+  /// </summary>
+  private void LayoutLibraryCards()
+  {
+    if (_libraryFlow.Controls.Count == 0)
+    {
+      return;
+    }
+    var scale = _libraryFlow.DeviceDpi / 96f;
+    var gap = ScalePx(14, scale);
+    var minCardWidth = ScalePx(210, scale);
+    var available = _libraryFlow.ClientSize.Width - _libraryFlow.Padding.Horizontal;
+    if (available < minCardWidth)
+    {
+      available = minCardWidth;
+    }
+    var columns = Math.Max(1, (available + gap) / (minCardWidth + gap));
+    var cardWidth = (available - gap * (columns - 1)) / columns;
+    if (cardWidth < minCardWidth)
+    {
+      columns = 1;
+      cardWidth = available;
+    }
+    if (cardWidth <= 0)
+    {
+      return;
+    }
+    foreach (Control card in _libraryFlow.Controls)
+    {
+      card.Width = cardWidth;
+    }
+  }
+
+  private static int ScalePx(int value, float scale) => (int)MathF.Round(value * scale);
+
+  private static void EnableDoubleBuffering(Control control)
+  {
+    typeof(Control)
+      .GetProperty("DoubleBuffered", BindingFlags.Instance | BindingFlags.NonPublic)
+      ?.SetValue(control, true);
   }
 
   private static void ConfigureButton(Button button, string text, bool primary, bool danger = false)
