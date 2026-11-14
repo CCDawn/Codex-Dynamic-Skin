@@ -62,6 +62,10 @@ function Assert-DreamSkinPort { param([int]$Port) }
 function Get-DreamSkinNodeRuntime {
   return [pscustomobject]@{ Path = 'mock-node.exe'; Version = '22.23.1' }
 }
+function Start-DreamSkinDetachedNodeDaemon {
+  param([string]$NodePath, [object[]]$ArgumentList, [string]$StdoutPath, [string]$StderrPath)
+  return $script:daemon
+}
 function Get-DreamSkinCodexInstall {
   return [pscustomobject]@{
     Executable = 'C:\Program Files\WindowsApps\OpenAI.Codex\app\ChatGPT.exe'
