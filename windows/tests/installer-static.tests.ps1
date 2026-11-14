@@ -161,7 +161,7 @@ foreach ($requiredBuilderContract in @(
   'Copy-Item -LiteralPath $innoChineseLanguagePath',
   "'preset-gothic-void-crusade'",
   "'presets\preset-gothic-void-crusade'",
-  "`$publicPresetTheme.image = 'dream-reference.jpg'",
+  "`$publicPresetTheme.image = 'default-preset.jpg'",
   '$stagedPublicImageHash',
   'Staged installer payload did not retain the reviewed public release theme.',
   "'assets\theme-package-validator.mjs'",

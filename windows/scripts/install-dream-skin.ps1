@@ -43,8 +43,12 @@ try {
   $null = Initialize-DreamSkinThemeStore -SkillRoot $engine.Root -StateRoot $StateRoot
   $ConfigPath = $configPaths.ConfigPath
   $BackupPath = $configPaths.BackupPath
-  Install-DreamSkinBaseTheme -ConfigPath $ConfigPath -BackupPath $BackupPath `
-    -AppearanceTheme (Get-DreamSkinActiveThemeAppearance -ThemeDirectory $themePaths.Active)
+  $activeAppearance = Get-DreamSkinActiveThemeAppearance -ThemeDirectory $themePaths.Active
+  if ($activeAppearance -ne 'none') {
+    # Wallpaper-only themes (the default) leave Codex config.toml untouched.
+    Install-DreamSkinBaseTheme -ConfigPath $ConfigPath -BackupPath $BackupPath `
+      -AppearanceTheme $activeAppearance
+  }
 
   if (-not $NoShortcuts) {
     $shell = New-Object -ComObject WScript.Shell

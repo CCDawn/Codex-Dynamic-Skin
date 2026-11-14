@@ -55,9 +55,11 @@ function Test-DreamSkinRenderedVerificationOutput {
     foreach ($target in @($payload.targets)) {
       $result = $target.result
       $readiness = $result.readiness
+      $documentRendered = ($readiness.documentPass -is [bool] -and [bool]$readiness.documentPass) -or
+        ($readiness.visibilityDeferred -is [bool] -and [bool]$readiness.visibilityDeferred)
       if ($result.installed -is [bool] -and [bool]$result.installed -and
         $result.stylePresent -is [bool] -and [bool]$result.stylePresent -and
-        $readiness.documentPass -is [bool] -and [bool]$readiness.documentPass -and
+        $documentRendered -and
         $readiness.viewportPass -is [bool] -and [bool]$readiness.viewportPass -and
         $readiness.structurePass -is [bool] -and [bool]$readiness.structurePass) {
         return $true
@@ -309,18 +311,26 @@ try {
       }
     }
     if ($null -eq (Get-DreamSkinVerifiedCdpIdentity -Port $Port -Codex $codex)) {
-      # Codex is closed on this path; sync the appearanceTheme pin to the
-      # active theme before launching (config writes race the app while it runs).
-      try {
-        $appearanceTransaction = Install-DreamSkinBaseTheme `
-          -ConfigPath $ConfigPath -BackupPath $BackupPath `
-          -AppearanceTheme (Get-DreamSkinActiveThemeAppearance -ThemeDirectory $themePaths.Active) `
-          -PassThruTransaction
-        if ($null -ne $appearanceTransaction) { $appearanceRecovery = 'retained' }
-      } catch {
+      $activeAppearance = Get-DreamSkinActiveThemeAppearance -ThemeDirectory $themePaths.Active
+      if ($activeAppearance -eq 'none') {
+        # Wallpaper-only themes (the default) never read or write Codex
+        # config.toml: no appearanceTheme pin, no managed keys, no transaction.
         $appearanceTransaction = $null
         $appearanceRecovery = 'not-needed'
-        Write-Warning "Could not sync Codex appearanceTheme to the active theme: $($_.Exception.Message)"
+      } else {
+        # Codex is closed on this path; sync the appearanceTheme pin to the
+        # active theme before launching (config writes race the app while it runs).
+        try {
+          $appearanceTransaction = Install-DreamSkinBaseTheme `
+            -ConfigPath $ConfigPath -BackupPath $BackupPath `
+            -AppearanceTheme $activeAppearance `
+            -PassThruTransaction
+          if ($null -ne $appearanceTransaction) { $appearanceRecovery = 'retained' }
+        } catch {
+          $appearanceTransaction = $null
+          $appearanceRecovery = 'not-needed'
+          Write-Warning "Could not sync Codex appearanceTheme to the active theme: $($_.Exception.Message)"
+        }
       }
       $startFailureCategory = 'port-unavailable'
       if (-not (Test-DreamSkinPortAvailable -Port $Port)) {
@@ -545,12 +555,15 @@ try {
   $daemon = $null
   $startFailureCategory = 'injector-start-failed'
   try {
-    $injectorArgs = @((ConvertTo-DreamSkinProcessArgument -Value $Injector), '--watch', '--port', "$Port",
-      '--browser-id', $cdpIdentity.BrowserId, '--theme-dir',
-      (ConvertTo-DreamSkinProcessArgument -Value $themePaths.Active), '--pause-file',
-      (ConvertTo-DreamSkinProcessArgument -Value $themePaths.PauseFile))
-    $daemon = Start-Process -FilePath $node.Path -ArgumentList $injectorArgs -WindowStyle Hidden -PassThru `
-      -RedirectStandardOutput $StdoutPath -RedirectStandardError $StderrPath
+    # The watcher is long-lived: spawn it fully detached (explicit file stdio,
+    # no handle inheritance) so it can never pin this script's stdout/stderr
+    # pipes -- a pinned pipe keeps every output-reading caller (bash "| tail",
+    # the Manager's PowerShellRunner) blocked until the daemon exits.
+    $injectorArgs = @($Injector, '--watch', '--port', "$Port",
+      '--browser-id', $cdpIdentity.BrowserId, '--theme-dir', $themePaths.Active,
+      '--pause-file', $themePaths.PauseFile)
+    $daemon = Start-DreamSkinDetachedNodeDaemon -NodePath $node.Path -ArgumentList $injectorArgs `
+      -StdoutPath $StdoutPath -StderrPath $StderrPath
     Start-Sleep -Milliseconds 500
     if ($daemon.HasExited) { throw "The injector exited during startup. See $StderrPath" }
 
@@ -625,6 +638,14 @@ try {
     if ($null -ne $appearanceTransaction) {
       Complete-DreamSkinAppearanceTransaction `
         -BackupPath $BackupPath -Transaction $appearanceTransaction
+    }
+    # The session is committed and verified: release the operation lock before
+    # any tail-end console/file work. A blocked writer (e.g. a full output
+    # pipe) must never keep the mutex hostage; the finally below stays as a
+    # backstop for every other path.
+    if ($null -ne $operationLock) {
+      Exit-DreamSkinOperationLock -Mutex $operationLock
+      $operationLock = $null
     }
   } catch {
     $startupError = $_

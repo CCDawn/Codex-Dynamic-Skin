@@ -10,9 +10,9 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const startPath = path.resolve(here, "../scripts/start-dream-skin.ps1");
 
 const selectors = {
-  shell: 'main:is(.main-surface, [data-app-shell-main-surface], [class*="_MainContentSurface_"])',
+  shell: 'main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"])',
   sidebar: "aside.app-shell-left-panel",
-  composer: ':is(.composer-surface-chrome, [class*="_ComposerLayoutRoot_"], [data-composer-surface-variant][data-composer-radius-variant])',
+  composer: ':is(.composer-surface-chrome, [class*="ComposerLayoutRoot"], [data-composer-surface-variant][data-composer-radius-variant])',
   homeIcon: '[data-testid="home-icon"]',
   home: '[role="main"]:has([data-testid="home-icon"])',
   gameSource: '[data-feature="game-source"]',
@@ -398,9 +398,10 @@ test("uninformative Browser window replies defer to the renderer, hidden documen
       bindingError,
       dom: makeDomFixture({ visibilityState: "hidden", hidden: true }),
     });
-    assert.equal(hidden.result.pass, false,
-      `${label}: a hidden document must fail even when the native window check is unusable.`);
+    assert.equal(hidden.result.pass, true,
+      `${label}: a hidden but fully laid-out renderer defers to the revival machinery instead of failing.`);
     assert.equal(hidden.result.readiness.documentPass, false, label);
+    assert.equal(hidden.result.readiness.visibilityDeferred, true, label);
 
     const tiny = await verify({
       bindingError,
@@ -412,11 +413,12 @@ test("uninformative Browser window replies defer to the renderer, hidden documen
 
     const noStructure = await verify({
       bindingError,
-      dom: makeDomFixture({ shell: null, sidebar: null }),
+      dom: makeDomFixture({ shell: null, sidebar: null, visibilityState: "hidden", hidden: true }),
     });
     assert.equal(noStructure.result.pass, false,
-      `${label}: a missing L1 shell must fail even when the native window check is unusable.`);
+      `${label}: a hidden document without the L1 shell must still fail closed.`);
     assert.equal(noStructure.result.readiness.structurePass, false, label);
+    assert.equal(noStructure.result.readiness.visibilityDeferred, false, label);
   }
 });
 

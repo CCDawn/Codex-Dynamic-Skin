@@ -7,9 +7,9 @@ import { SKIN_VERSION, verifySession, waitForVerifiedSession } from "../scripts/
 // selector strings change, since this mock's querySelector matches by exact
 // string equality and silently returns null on drift.
 const selectors = {
-  shell: 'main:is(.main-surface, [data-app-shell-main-surface], [class*="_MainContentSurface_"])',
+  shell: 'main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"])',
   sidebar: "aside.app-shell-left-panel",
-  composer: ':is(.composer-surface-chrome, [class*="_ComposerLayoutRoot_"], [data-composer-surface-variant][data-composer-radius-variant])',
+  composer: ':is(.composer-surface-chrome, [class*="ComposerLayoutRoot"], [data-composer-surface-variant][data-composer-radius-variant])',
   home: '[role="main"]:has([data-testid="home-icon"])',
   homeIcon: '[data-testid="home-icon"]',
   gameSource: '[data-feature="game-source"]',

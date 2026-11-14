@@ -19,6 +19,10 @@
   const STATE_KEY = "__CODEX_DREAM_SKIN_STATE__";
   const DISABLED_KEY = "__CODEX_DREAM_SKIN_DISABLED__";
   const STYLE_REGISTRY_KEY = "__CODEX_DREAM_SKIN_STYLE_SHEETS__";
+  // Page-level (cross-install) registries: the revival heartbeat and the
+  // scene-stream ownership slot survive cleanup/reinstall by design.
+  const HEARTBEAT_KEY = "__CODEX_DREAM_SKIN_HEARTBEAT__";
+  const STREAM_OWNER_KEY = "__CODEX_DREAM_SKIN_STREAM_OWNER__";
   const STYLE_ID = "codex-dream-skin-style";
   const MEDIA_ID = "codex-dream-skin-media";
   const SHELL_ATTR = "data-dream-shell";
@@ -33,7 +37,7 @@
     variable: `--ds-community-composer-${property}`,
   })).filter(({ variable }) => cssText.includes(`${variable}:`));
   const ROOT_ATTRS = [
-    "data-dream-skin", SHELL_ATTR, "data-dream-upload-alpha",
+    "data-dream-skin", SHELL_ATTR, "data-dream-ui", "data-dream-upload-alpha",
     "data-dream-art-wide", "data-dream-art-safe", "data-dream-task-mode",
     "data-dream-art-safe-area", "data-dream-art-task-mode", "data-dream-art-aspect",
     "data-dream-art-ready",
@@ -55,6 +59,11 @@
   const STYLE_REVISION = __DREAM_SKIN_STYLE_REVISION_JSON__;
   const PAYLOAD_REVISION = __DREAM_SKIN_PAYLOAD_REVISION_JSON__;
   const THEME = themeConfig && typeof themeConfig === "object" ? themeConfig : {};
+  // "wallpaper-only" (default) keeps the official UI untouched: the renderer
+  // only writes the wallpaper layers and the surface-transparency knobs, and
+  // the CSS gates every color/font/layout override behind
+  // html[data-dream-ui="full"]. "full" restores the complete reskin.
+  const UI_MODE = THEME.ui === "full" ? "full" : "wallpaper-only";
   // Only adapt declarations in the already validated community layer. Keep
   // foregrounds, borders and element opacity intact. Relative colors preserve
   // authored RGB/alpha (including percentages); local preferences replace alpha
@@ -154,6 +163,60 @@
   if (typeof previous?.cleanup === "function") previous.cleanup();
   window[DISABLED_KEY] = false;
 
+  // Page-level revival heartbeat. Every install-scoped driver — the 30s
+  // safety timer, the visibilitychange handler, the MutationObservers — dies
+  // with its own cleanup, and a re-install race (the daemon watcher and a
+  // Manager one-shot apply hitting the same page) can tear the live install
+  // down without the successor ever publishing state. A Codex 26.1106 session
+  // died exactly that way: the wallpaper was cleared at re-apply time and,
+  // with the page visible for minutes, no driver ever fired again —
+  // syncStreamState (and with it the whole revive loop) simply never ran.
+  // This interval therefore lives on `window`, is armed idempotently by every
+  // install and is NEVER cleared by cleanup; pause stays enforced through
+  // DISABLED_KEY plus the absence of STATE_KEY. Each tick drives the current
+  // owner's ensure; if a successor died mid-install (STATE_KEY missing while
+  // DISABLED_KEY is already false again), the last known state keeps the
+  // wallpaper alive on the previous theme until the next apply lands. The
+  // 10s cadence plus the <=24s restart backoff bounds visible-state recovery
+  // under the 30s incident SLA.
+  const HEARTBEAT_INTERVAL_MS = 10000;
+  const armHeartbeat = () => {
+    let heartbeat = window[HEARTBEAT_KEY];
+    if (heartbeat && typeof heartbeat.tick === "function") return;
+    heartbeat = {
+      state: null,
+      tick: () => {
+        const current = window[STATE_KEY];
+        if (current && typeof current.ensure === "function") {
+          heartbeat.state = current;
+        } else if (window[DISABLED_KEY]) {
+          heartbeat.state = null;
+          return;
+        }
+        const target = current && typeof current.ensure === "function"
+          ? current
+          : heartbeat.state;
+        if (!target || typeof target.ensure !== "function" || window[DISABLED_KEY]) return;
+        if (!current) {
+          // Resurrection: the last known install was torn down by a successor
+          // that died before publishing its own state. Re-publish it so its
+          // installToken guards (syncMediaElement, poster timers, stream
+          // bookkeeping) pass again and a future successful install can run
+          // its cleanup before replacing it.
+          window[STATE_KEY] = target;
+        }
+        try {
+          target.ensure({ root: true });
+        } catch {}
+      },
+    };
+    heartbeat.timer = typeof setInterval === "function"
+      ? setInterval(() => heartbeat.tick(), HEARTBEAT_INTERVAL_MS)
+      : null;
+    window[HEARTBEAT_KEY] = heartbeat;
+  };
+  armHeartbeat();
+
   const existingStyleRegistry = window[STYLE_REGISTRY_KEY];
   const styleRegistry = existingStyleRegistry instanceof Set ? existingStyleRegistry : new Set();
   window[STYLE_REGISTRY_KEY] = styleRegistry;
@@ -190,6 +253,30 @@
   let posterTimer = null;
   let mediaTransfer = null;
   let streamController = null;
+  // Wallpaper revival bookkeeping. A scene-stream controller survives its own
+  // failure (the finally in startStream only clears aborted runs), so its
+  // liveness is judged from stats instead of from mere existence. mediaWatch
+  // records the last observed currentTime while playback is expected: a
+  // wallpaper must always advance, so a frozen element is a stalled decode
+  // pipeline, not a paused one.
+  const MEDIA_STALL_MS = 10000;
+  const STREAM_CONNECT_TIMEOUT_MS = 15000;
+  const STREAM_APPEND_TIMEOUT_MS = 20000;
+  // A freshly assigned source with no decoded frame yet is loading, not dead:
+  // only a silent window this long (no playback, no readyState movement) may
+  // be judged stalled so the first buffer gets a fair chance.
+  const STREAM_LOAD_TIMEOUT_MS = 15000;
+  const STREAM_RETRY_MAX_MS = 30000;
+  const streamRetry = { failures: 0, lastAttempt: 0 };
+  const mediaWatch = { time: null, at: 0 };
+  let streamReviveRequested = false;
+  // "mse" pipes the scene stream through MediaSource; "direct" hands the
+  // stream URL straight to the media element. Newer Codex builds tighten CSP
+  // and reject the fMP4 fragments in SourceBuffer even though the element
+  // decodes the same bytes natively, so an append-level failure switches the
+  // session to direct playback. MSE stays the default so older builds keep
+  // their chunk accounting and buffer eviction unchanged.
+  let streamMode = "mse";
 
   const cssString = (value) => JSON.stringify(String(value ?? ""));
 
@@ -420,9 +507,13 @@
     if (Object.values(uploadAlphas).some((alpha) => alpha !== null)) {
       setAttribute(root, "data-dream-upload-alpha", "true");
     } else root.removeAttribute("data-dream-upload-alpha");
+    // Wallpaper-only stops here: transparency knobs stay live, but the shell
+    // keeps its official palette, fonts, shapes and layout untouched.
+    if (UI_MODE === "wallpaper-only") return;
 
     const adaptive = makeAdaptivePalette(artAnalysis?.accentRgb, shell);
-    const legacyLight = (THEME.appearance === undefined || THEME.appearance === "auto")
+    const legacyLight = (THEME.appearance === undefined || THEME.appearance === "auto"
+      || THEME.appearance === "none")
       && THEME.colorMode !== "explicit" && shell === "light";
     const structural = new Set(["background", "panel", "panelAlt", "text", "muted"]);
     const pick = (name) => {
@@ -743,6 +834,9 @@
     const shell = resolvedShell();
     setAttribute(root, "data-dream-skin", "active");
     setAttribute(root, SHELL_ATTR, shell);
+    // The CSS gate: "full" opts into every reskin rule, "wallpaper-only"
+    // (default) keeps only the wallpaper layers and surface transparency.
+    setAttribute(root, "data-dream-ui", UI_MODE);
     // Video themes paint through #codex-dream-skin-media instead of the CSS art
     // layer; "none" keeps the upstream veil gradients translucent over it.
     // Poster transport swaps in one captured frame as static art once the
@@ -894,6 +988,42 @@
       applyPosterFromMedia(media);
       return media;
     }
+    // Revival probe: every theme apply, resume, visibility change and the
+    // safety timer arrive here. A missing element is rebuilt below, so the
+    // remaining dead ends are an element that ended (an MSE pipeline that hit
+    // endOfStream freezes on its last frame) or one whose decode stalled
+    // (currentTime frozen while playback is expected, with a pending play()
+    // that can never be satisfied by dead data). A source that has not yet
+    // decoded its first frame (currentTime still at zero, readyState < 2, no
+    // error) is loading rather than stalled, so the first buffer keeps a fair
+    // window instead of being torn down mid-load. Blob-file wallpapers recover
+    // by rebuilding the element; scene streams must be restarted as a whole
+    // pipeline, which syncStreamState performs on the revive request.
+    const shouldPlay = Boolean(mediaUrl) && !document.hidden && videoConfig.wallpaperReveal > 0;
+    let rebuildMedia = false;
+    if (media && shouldPlay) {
+      const progressAt = Number(media.currentTime);
+      const progressed = !Number.isFinite(progressAt) || progressAt !== mediaWatch.time;
+      const firstLoad = Number.isFinite(progressAt) && progressAt === 0 &&
+        Number(media.readyState) < 2 && !media.error;
+      const frozen = !progressed && !firstLoad && Date.now() - mediaWatch.at > MEDIA_STALL_MS;
+      if (frozen || media.ended === true) {
+        if (videoConfig.streamUrl) streamReviveRequested = true;
+        else rebuildMedia = true;
+        mediaWatch.time = null;
+      } else if (progressed) {
+        mediaWatch.time = progressAt;
+        mediaWatch.at = Date.now();
+      }
+    } else if (!shouldPlay) {
+      mediaWatch.time = null;
+    }
+    if (rebuildMedia) {
+      // A decode-stopped blob element is not trusted again: replace it and
+      // reload the same media from scratch.
+      media?.remove();
+      media = null;
+    }
     if (!media || media.parentElement !== document.body) {
       media?.remove();
       media = document.createElement("video");
@@ -916,6 +1046,10 @@
     if (mediaUrl && media.src !== mediaUrl) {
       media.src = mediaUrl;
       media.load?.();
+      // A freshly loaded pipeline restarts the stall clock and retires any
+      // pending revive request from before the reload.
+      mediaWatch.time = null;
+      streamReviveRequested = false;
     }
     if (!mediaUrl || document.hidden || videoConfig.wallpaperReveal <= 0) {
       if (!media.paused) media.pause?.();
@@ -945,8 +1079,11 @@
     const controller = streamController;
     streamController = null;
     if (controller) {
-      controller.abort.abort();
+      controller.abort?.abort?.();
       controller.reader?.cancel?.().catch?.(() => {});
+    }
+    if (window[STREAM_OWNER_KEY]?.token === installToken) {
+      window[STREAM_OWNER_KEY] = null;
     }
     const media = document.getElementById(MEDIA_ID);
     media?.pause?.();
@@ -959,10 +1096,36 @@
     return Boolean(controller);
   };
 
+  // Page-level ownership of the live scene-stream pipeline. It lets a newer
+  // install stop a pipeline that belonged to a superseded closure (a
+  // heartbeat-resurrected predecessor, see armHeartbeat) so at most one
+  // fetch/append loop ever runs per page.
+  const releaseOrphanStream = () => {
+    const orphan = window[STREAM_OWNER_KEY];
+    if (!orphan || orphan.token === installToken) return;
+    orphan.abort?.abort?.();
+    orphan.reader?.cancel?.().catch?.(() => {});
+    window[STREAM_OWNER_KEY] = null;
+  };
+  const claimStreamOwner = (controller) => {
+    releaseOrphanStream();
+    window[STREAM_OWNER_KEY] = {
+      token: installToken,
+      abort: controller.abort ?? null,
+      reader: null,
+    };
+  };
+  const trackOwnedReader = (reader) => {
+    const owner = window[STREAM_OWNER_KEY];
+    if (owner?.token === installToken) owner.reader = reader;
+  };
+
   const startStream = async () => {
+    streamReviveRequested = false;
     if (videoConfig.mediaType !== "video" || !videoConfig.streamUrl ||
-        typeof MediaSource !== "function" || typeof fetch !== "function" ||
-        typeof AbortController !== "function") return false;
+        typeof fetch !== "function" || typeof AbortController !== "function") return false;
+    if (streamMode === "direct") return startDirectStream();
+    if (typeof MediaSource !== "function") return false;
     const mime = `video/mp4; codecs="${videoConfig.streamCodec}"`;
     if (typeof MediaSource.isTypeSupported === "function" && !MediaSource.isTypeSupported(mime)) {
       return false;
@@ -982,6 +1145,7 @@
       },
     };
     streamController = controller;
+    claimStreamOwner(controller);
     if (mediaUrl) URL.revokeObjectURL(mediaUrl);
     mediaUrl = URL.createObjectURL(controller.mediaSource);
     const state = window[STATE_KEY];
@@ -1007,16 +1171,26 @@
       });
       if (!response.ok || !response.body) throw new Error(`Stream request failed: ${response.status}`);
       controller.reader = response.body.getReader();
+      trackOwnedReader(controller.reader);
       for (;;) {
         const { value, done } = await controller.reader.read();
         if (done || streamController !== controller) break;
         if (!(value instanceof Uint8Array) || value.byteLength === 0) continue;
-        await waitForSourceBuffer(sourceBuffer);
-        sourceBuffer.appendBuffer(value);
-        await waitForSourceBuffer(sourceBuffer);
+        try {
+          await waitForSourceBuffer(sourceBuffer);
+          sourceBuffer.appendBuffer(value);
+          await waitForSourceBuffer(sourceBuffer);
+        } catch (error) {
+          // SourceBuffer-level rejection (init segment or media fragment):
+          // remember it so the session can fall back to the direct element
+          // source, which decodes the same stream natively.
+          controller.stats.appendFailed = true;
+          throw error;
+        }
         controller.stats.chunks += 1;
         controller.stats.bytes += value.byteLength;
         controller.stats.lastAppendAt = Date.now();
+        if (controller.stats.chunks === 1) streamRetry.failures = 0;
         const media = document.getElementById(MEDIA_ID);
         const buffered = sourceBuffer.buffered;
         if (media && buffered?.length && media.currentTime > 20) {
@@ -1043,6 +1217,14 @@
         : String(error?.message || error || "Unknown local stream error").slice(0, 500);
       if (!controller.abort.signal.aborted) {
         console.error(`[dream-skin] local stream failed: ${controller.stats.error}`);
+        if (controller.stats.appendFailed && streamMode !== "direct") {
+          // The element decodes this stream natively even when MediaSource
+          // cannot: hand the URL straight to the media element. Retries stay
+          // MSE-free for the rest of the session.
+          streamMode = "direct";
+          streamRetry.failures = 0;
+          void startStream();
+        }
       }
       return false;
     } finally {
@@ -1052,10 +1234,153 @@
     }
   };
 
+  // Direct fallback: hand the stream URL straight to the media element by
+  // reusing the mediaUrl slot, so pause/hidden/reveal gating and the src
+  // assignment mechanism keep working unchanged. Liveness is judged from the
+  // element itself (see directStreamAlive); resource timing is only a
+  // byte-accounting bonus because some Codex builds never emit media
+  // resource-timing entries at all.
+  const startDirectStream = () => {
+    stopStream();
+    const controller = {
+      abort: null,
+      reader: null,
+      mediaSource: null,
+      direct: true,
+      directSample: { time: null, bytes: 0, credited: 0, readyState: 0 },
+      stats: {
+        status: "direct",
+        chunks: 0,
+        bytes: 0,
+        startedAt: Date.now(),
+        lastAppendAt: null,
+        error: null,
+      },
+    };
+    streamController = controller;
+    claimStreamOwner(controller);
+    mediaUrl = videoConfig.streamUrl;
+    const state = window[STATE_KEY];
+    if (state?.installToken === installToken) {
+      state.mediaUrl = mediaUrl;
+      state.streamStats = controller.stats;
+    }
+    // A repeat start must actually reload the element even though the URL
+    // stayed the same.
+    const media = document.getElementById(MEDIA_ID);
+    if (media && media.src === mediaUrl) {
+      media.removeAttribute?.("src");
+      media.load?.();
+    }
+    syncMediaElement();
+    return true;
+  };
+
+  // A stream controller only counts as alive while its pipeline still makes
+  // progress: "error"/"ended"/aborted leftovers, a connect that never opens
+  // and a fetch or append that stopped advancing are all dead. Without this,
+  // one failed fetch during a resume or hot theme apply would pin a dead
+  // controller forever and no later path could restart the stream.
+  const streamAlive = (controller) => {
+    if (!controller || controller.abort.signal.aborted) return false;
+    const stats = controller.stats;
+    if (stats.status === "connecting") {
+      return Date.now() - stats.startedAt <= STREAM_CONNECT_TIMEOUT_MS;
+    }
+    if (stats.status === "streaming") {
+      return Date.now() - (stats.lastAppendAt ?? stats.startedAt) <= STREAM_APPEND_TIMEOUT_MS;
+    }
+    return false;
+  };
+
+  // Direct-mode liveness is judged from the media element ONLY: advancing
+  // playback, decode-ready frames (readyState >= 2), a known duration or any
+  // readyState movement each prove the pipeline is alive. Codex 26.1106 media
+  // requests never enter resource timing, so entries may never be consulted
+  // as death evidence — they only top up the byte/chunk counters for
+  // verification. The paused/playing flag is deliberately NOT evidence: the
+  // sync path re-issues play() on every pass, so a stream that never actually
+  // starts would otherwise read as permanently alive. Without fresh evidence,
+  // a source still loading its first buffer (assigned src, readyState < 2,
+  // no decode error) gets the full load window before a stall is declared so
+  // the revive path can rebuild it; a cleared source (mediaUrl lost to a
+  // prior stop) is never alive — restart must reassign src and play.
+  const directStreamAlive = (controller) => {
+    if (!controller || controller.stats.appendFailed || !mediaUrl) return false;
+    const stats = controller.stats;
+    const sample = controller.directSample || (controller.directSample = {
+      time: null, bytes: 0, credited: 0, readyState: 0,
+    });
+    const media = document.getElementById(MEDIA_ID);
+    const time = Number(media?.currentTime);
+    const readyState = Number(media?.readyState) || 0;
+    const duration = Number(media?.duration);
+    const advanced = Number.isFinite(time) && time !== sample.time;
+    const decoding = readyState >= 2;
+    const hasDuration = Number.isFinite(duration) && duration > 0;
+    const readyStateChanged = readyState !== sample.readyState;
+    const progressed = advanced || decoding || hasDuration || readyStateChanged;
+    let observed = 0;
+    try {
+      const entries = typeof performance === "object" &&
+        typeof performance.getEntriesByType === "function"
+        ? performance.getEntriesByType("resource") || []
+        : [];
+      for (const entry of entries) {
+        if (entry?.name !== videoConfig.streamUrl) continue;
+        observed += Number(entry.transferSize) || Number(entry.encodedBodySize) ||
+          Number(entry.decodedBodySize) || 0;
+      }
+    } catch {
+      observed = 0;
+    }
+    const grewBytes = observed > sample.bytes;
+    if (grewBytes) {
+      stats.bytes = Math.max(stats.bytes, observed);
+      sample.bytes = observed;
+      stats.chunks += 1;
+    }
+    if (advanced) {
+      if (time > sample.credited) {
+        stats.bytes += Math.max(1, Math.round((time - sample.credited) * 1024));
+        sample.credited = time;
+      }
+      sample.time = time;
+      stats.chunks = Math.max(stats.chunks, 1);
+    }
+    sample.readyState = readyState;
+    if (progressed || grewBytes) {
+      stats.lastAppendAt = Date.now();
+      if (progressed) streamRetry.failures = 0;
+      return true;
+    }
+    // No evidence right now. While the first buffer is still loading, only a
+    // fully silent load window counts as stalled; everything else uses the
+    // regular evidence window before the revive path rebuilds the pipeline.
+    const lastEvidence = stats.lastAppendAt ?? stats.startedAt;
+    const loading = Boolean(media) && !media.error && readyState < 2;
+    const quietWindow = loading ? STREAM_LOAD_TIMEOUT_MS : STREAM_APPEND_TIMEOUT_MS;
+    return Date.now() - lastEvidence <= quietWindow;
+  };
+
   const syncStreamState = () => {
     if (!videoConfig.streamUrl) return false;
     if (document.hidden || videoConfig.wallpaperReveal <= 0) return stopStream();
-    if (!streamController) void startStream();
+    if (streamController?.stats?.appendFailed) streamMode = "direct";
+    const alive = streamMode === "direct"
+      ? directStreamAlive(streamController)
+      : streamAlive(streamController);
+    if (!alive || streamReviveRequested) {
+      const elapsed = Date.now() - streamRetry.lastAttempt;
+      const delay = streamRetry.failures > 0
+        ? Math.min(STREAM_RETRY_MAX_MS, 1500 * (2 ** Math.min(streamRetry.failures - 1, 4)))
+        : 0;
+      if (elapsed >= delay) {
+        streamRetry.lastAttempt = Date.now();
+        streamRetry.failures += 1;
+        void startStream();
+      }
+    }
     return true;
   };
 
@@ -1157,11 +1482,11 @@
       const main = resolvedMainNode();
       for (const input of genericInputNodes()) {
         if (main && !main.contains?.(input)) continue;
-        const layoutRoot = input.closest?.('[class*="_ComposerLayoutRoot_"]');
+        const layoutRoot = input.closest?.('[class*="ComposerLayoutRoot"]');
         if (layoutRoot && (!main || main.contains?.(layoutRoot))) return [layoutRoot];
         const semanticOwner = input.closest?.(
           '.composer-surface-chrome, [data-composer-surface-variant][data-composer-radius-variant], ' +
-          '[class*="_ComposerLayoutRoot_"]',
+          '[class*="ComposerLayoutRoot"]',
         );
         if (semanticOwner && (!main || main.contains?.(semanticOwner))) return [semanticOwner];
         const ownerSelector =
@@ -1458,7 +1783,7 @@
     // SPA route changes are observable as DOM mutations even when Chromium's
     // Navigation API emits no event. Keep verification scope and public parts
     // derived from the same post-mutation tree.
-    const predicateClass = /main-surface|_MainContentSurface_|home-banners|_homeUtilityBar_|_ComposerHomeUtilityBar_|horizontal-scroll-fade-mask|group\/project-selector/;
+    const predicateClass = /main-surface|MainContentSurface|home-banners|_homeUtilityBar_|_ComposerHomeUtilityBar_|horizontal-scroll-fade-mask|group\/project-selector/;
     partObserver = new MutationObserver((records) => {
       const changed = records.some((record) => {
         if (record.type !== "attributes") return true;
@@ -1512,6 +1837,7 @@
     metrics,
     version: VERSION,
     themeId: THEME.id || "custom",
+    ui: UI_MODE,
     revision: PAYLOAD_REVISION,
     config: {
       mediaType: videoConfig.mediaType,
@@ -1607,6 +1933,7 @@
     installed: true,
     version: VERSION,
     themeId: THEME.id || "custom",
+    ui: UI_MODE,
     revision: PAYLOAD_REVISION,
     shell: resolvedShell(),
     scope: initialScope,

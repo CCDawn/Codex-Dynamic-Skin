@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -120,14 +121,14 @@ try {
   const streamUrl = "http://127.0.0.1:17866/1234567890abcdef1234567890abcdef/stream.mp4";
   await fs.mkdir(streamThemeDirectory);
   await fs.copyFile(
-    path.join(windowsRoot, "assets", "dream-reference.jpg"),
-    path.join(streamThemeDirectory, "preview.jpg"),
+    path.join(windowsRoot, "assets", "blank.png"),
+    path.join(streamThemeDirectory, "preview.png"),
   );
   await fs.writeFile(path.join(streamThemeDirectory, "theme.json"), JSON.stringify({
     schemaVersion: 1,
     id: "scene-stream-fixture",
     name: "Scene Stream Fixture",
-    image: "preview.jpg",
+    image: "preview.png",
     media: {
       type: "scene",
       streamUrl,
@@ -146,13 +147,13 @@ try {
   const remoteStreamDirectory = path.join(temporary, "remote-scene-stream-theme");
   await fs.mkdir(remoteStreamDirectory);
   await fs.copyFile(
-    path.join(windowsRoot, "assets", "dream-reference.jpg"),
-    path.join(remoteStreamDirectory, "preview.jpg"),
+    path.join(windowsRoot, "assets", "blank.png"),
+    path.join(remoteStreamDirectory, "preview.png"),
   );
   await fs.writeFile(path.join(remoteStreamDirectory, "theme.json"), JSON.stringify({
     schemaVersion: 1,
     id: "remote-scene-stream-fixture",
-    image: "preview.jpg",
+    image: "preview.png",
     media: {
       type: "scene",
       streamUrl: "http://192.168.1.5:17866/1234567890abcdef1234567890abcdef/stream.mp4",
@@ -192,8 +193,8 @@ try {
   }));
   await fs.writeFile(path.join(sceneWorkshopDirectory, "scene.pkg"), Buffer.alloc(1024, 0x5a));
   await fs.copyFile(
-    path.join(windowsRoot, "assets", "dream-reference.jpg"),
-    path.join(sceneWorkshopDirectory, "preview.jpg"),
+    path.join(windowsRoot, "assets", "blank.png"),
+    path.join(sceneWorkshopDirectory, "preview.png"),
   );
   await fs.writeFile(path.join(referencedThemeDirectory, "theme.json"), JSON.stringify({
     schemaVersion: 1,
@@ -229,18 +230,46 @@ try {
     assert.equal(listedScene?.relativePath, "scene.pkg");
 
     const sceneStateRoot = path.join(temporary, "scene-state");
-    const sceneApplied = await runManagerCommand([
+    const deadStreamUrl = "http://127.0.0.1:1/1234567890abcdef1234567890abcdef/stream.mp4";
+    const rejectedDeadStream = await runManagerCommand([
       "-Action", "UseSceneStream",
       "-Path", path.join(sceneWorkshopDirectory, "scene.pkg"),
-      "-StreamUrl", streamUrl,
+      "-StreamUrl", deadStreamUrl,
       "-StateRoot", sceneStateRoot,
     ]);
-    assert.equal(sceneApplied.code, 0, sceneApplied.stderr);
-    const sceneAppliedPayload = JSON.parse(sceneApplied.stdout.toString("utf8"));
-    assert.equal(sceneAppliedPayload.mediaType, "scene");
-    const checkedAppliedScene = await runInjector(path.join(sceneStateRoot, "active-theme"));
-    assert.equal(checkedAppliedScene.code, 0, checkedAppliedScene.stderr);
-    assert.equal(JSON.parse(checkedAppliedScene.stdout).media.streamUrl, streamUrl);
+    assert.notEqual(rejectedDeadStream.code, 0, "UseSceneStream must refuse dead scene streams.");
+    assert.match(rejectedDeadStream.stderr, /场景流不可用/);
+    const rejectedStateTheme = JSON.parse(
+      await fs.readFile(path.join(sceneStateRoot, "active-theme", "theme.json"), "utf8"));
+    assert.equal(rejectedStateTheme.media?.streamUrl, undefined,
+      "A rejected scene stream must not write a dead stream theme.");
+
+    // Set-DreamSkinActiveSceneStreamTheme probes the loopback stream before it
+    // writes any theme, so the fixture must serve the endpoint for the happy path.
+    const sceneStreamServer = http.createServer((_request, response) => {
+      response.writeHead(200, { "Content-Type": "video/mp4" });
+      response.end(Buffer.alloc(1024, 0x5a));
+    });
+    await new Promise((resolve, reject) => {
+      sceneStreamServer.once("error", reject);
+      sceneStreamServer.listen(17866, "127.0.0.1", resolve);
+    });
+    try {
+      const sceneApplied = await runManagerCommand([
+        "-Action", "UseSceneStream",
+        "-Path", path.join(sceneWorkshopDirectory, "scene.pkg"),
+        "-StreamUrl", streamUrl,
+        "-StateRoot", sceneStateRoot,
+      ]);
+      assert.equal(sceneApplied.code, 0, sceneApplied.stderr);
+      const sceneAppliedPayload = JSON.parse(sceneApplied.stdout.toString("utf8"));
+      assert.equal(sceneAppliedPayload.mediaType, "scene");
+      const checkedAppliedScene = await runInjector(path.join(sceneStateRoot, "active-theme"));
+      assert.equal(checkedAppliedScene.code, 0, checkedAppliedScene.stderr);
+      assert.equal(JSON.parse(checkedAppliedScene.stdout).media.streamUrl, streamUrl);
+    } finally {
+      await new Promise((resolve) => sceneStreamServer.close(resolve));
+    }
   }
 
   const escapedReferenceDirectory = path.join(temporary, "escaped-reference");

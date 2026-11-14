@@ -54,15 +54,15 @@ async function buildWith(themeFields) {
   const themeDir = await fs.mkdtemp(path.join(os.tmpdir(), "dream-skin-payload-"));
   try {
     await fs.copyFile(
-      path.join(assetsDir, "dream-reference.jpg"),
-      path.join(themeDir, "dream-reference.jpg"),
+      path.join(assetsDir, "blank.png"),
+      path.join(themeDir, "blank.png"),
     );
     await fs.writeFile(
       path.join(themeDir, "theme.json"),
       JSON.stringify({
         schemaVersion: 1,
         id: "payload-integrity-fixture",
-        image: "dream-reference.jpg",
+        image: "blank.png",
         appearance: "auto",
         ...themeFields,
       }),
@@ -182,14 +182,14 @@ test("Windows payload uses the same compiled Safe CSS cascade as macOS", async (
   const themeDir = await fs.mkdtemp(path.join(os.tmpdir(), "dream-skin-safe-css-payload-"));
   try {
     await fs.copyFile(
-      path.join(assetsDir, "dream-reference.jpg"),
-      path.join(themeDir, "dream-reference.jpg"),
+      path.join(assetsDir, "blank.png"),
+      path.join(themeDir, "blank.png"),
     );
     await fs.writeFile(path.join(themeDir, "theme.json"), JSON.stringify({
       schemaVersion: 1,
       id: "safe-css-cascade-fixture",
       name: "Safe CSS cascade",
-      image: "dream-reference.jpg",
+      image: "blank.png",
       appearance: "auto",
     }), "utf8");
     const source = `[data-ds-part="sidebar"] { background-color: #123456; }

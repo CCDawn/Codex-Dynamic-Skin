@@ -357,8 +357,8 @@ try {
   Copy-ReleaseDirectory -Source $publicPresetRoot `
     -Destination (Join-Path $payloadRoot 'presets\preset-gothic-void-crusade')
   Copy-Item -LiteralPath $publicPresetImagePath `
-    -Destination (Join-Path (Join-Path $payloadRoot 'assets') 'dream-reference.jpg') -Force
-  $publicPresetTheme.image = 'dream-reference.jpg'
+    -Destination (Join-Path (Join-Path $payloadRoot 'assets') 'default-preset.jpg') -Force
+  $publicPresetTheme.image = 'default-preset.jpg'
   [System.IO.File]::WriteAllText(
     (Join-Path (Join-Path $payloadRoot 'assets') 'theme.json'),
     (($publicPresetTheme | ConvertTo-Json -Depth 8) + "`r`n"),
@@ -390,7 +390,8 @@ try {
 
   $expectedPayloadFiles = @(
     'VERSION',
-    'assets\dream-reference.jpg',
+    'assets\blank.png',
+    'assets\default-preset.jpg',
     'assets\dream-skin.css',
     'assets\renderer-inject.js',
     'assets\safe-css-policy.json',
@@ -424,7 +425,7 @@ try {
       throw "Staged installer payload is incomplete: $relative"
     }
   }
-  $stagedPublicImage = Join-Path (Join-Path $payloadRoot 'assets') 'dream-reference.jpg'
+  $stagedPublicImage = Join-Path (Join-Path $payloadRoot 'assets') 'default-preset.jpg'
   $stagedPublicImageHash = (Get-FileHash -LiteralPath $stagedPublicImage -Algorithm SHA256).Hash.ToLowerInvariant()
   $stagedPublicThemePath = Join-Path (Join-Path $payloadRoot 'presets') `
     'preset-gothic-void-crusade\theme.json'
@@ -434,7 +435,7 @@ try {
   if ($stagedPublicImageHash -cne $publicPresetImageSha256 -or
     $stagedPublicThemeHash -cne $publicPresetThemeSha256 -or
     "$($stagedPublicTheme.id)" -cne 'preset-gothic-void-crusade' -or
-    "$($stagedPublicTheme.image)" -cne 'dream-reference.jpg') {
+    "$($stagedPublicTheme.image)" -cne 'default-preset.jpg') {
     throw 'Staged installer payload did not retain the reviewed public release theme.'
   }
 

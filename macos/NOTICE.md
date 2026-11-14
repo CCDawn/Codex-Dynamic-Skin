@@ -31,7 +31,6 @@ OpenAI/Codex affiliation or endorsement.
 The following user/maintainer-supplied files are excluded from the MIT software license:
 
 - `presets/preset-arina-hashimoto/background.jpg`
-- `../windows/assets/dream-reference.jpg`
 - `../docs/images/presets/arina-hashimoto-source.png`
 - `../docs/images/presets/arina-hashimoto-light.jpg`
 - `../docs/images/presets/arina-hashimoto-dark.jpg`

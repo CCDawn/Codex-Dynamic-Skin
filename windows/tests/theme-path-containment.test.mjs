@@ -8,7 +8,7 @@ import { loadTheme } from "../scripts/injector.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const windowsRoot = path.resolve(here, "..");
-const sourceImage = path.join(windowsRoot, "assets", "dream-reference.jpg");
+const sourceImage = path.join(windowsRoot, "assets", "blank.png");
 
 async function writeTheme(root, image) {
   await fs.writeFile(path.join(root, "theme.json"), `${JSON.stringify({

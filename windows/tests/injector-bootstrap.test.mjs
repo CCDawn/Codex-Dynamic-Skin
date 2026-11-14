@@ -8,7 +8,7 @@ import { cleanupExcludedSurface, earlyPayloadFor } from "../scripts/injector.mjs
 const here = path.dirname(fileURLToPath(import.meta.url));
 const injectorPath = path.resolve(here, "../scripts/injector.mjs");
 const source = await fs.readFile(injectorPath, "utf8");
-const shellSelector = 'main:is(.main-surface, [data-app-shell-main-surface], [class*="_MainContentSurface_"])';
+const shellSelector = 'main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"])';
 
 function createFixture() {
   const domReady = [];
@@ -212,10 +212,10 @@ const evaluateStart = source.indexOf("await session.evaluate(earlyPayloadFor", r
 const probeStart = source.indexOf("const probe = await waitForCodexProbe", registrationStart);
 assert.ok(registrationStart >= 0 && evaluateStart > registrationStart && probeStart > evaluateStart,
   "New targets must register and run the early payload before full shell probing.");
-assert.match(source, /if \(earlyInjectionFallback \|\| loadedPayload\.mediaType === "video"\)/,
-  "Load-event reinjection must cover early-injection fallback and post-load video transfer.");
-assert.match(source, /if \(!fallbackTargets\.get\(id\) && loadedPayload\?\.mediaType !== "video"\) return;/,
-  "Load listeners must stay inert unless fallback or video transfer is required.");
+assert.match(source, /if \(earlyInjectionFallback \|\| loadedPayload\.mediaType === "video" \|\| streamEnabledAtAttach\)/,
+  "Load-event reinjection must cover early-injection fallback, post-load video transfer, and stream themes (CSP-bypass reload).");
+assert.match(source, /if \(!fallbackTargets\.get\(id\) && loadedPayload\?\.mediaType !== "video" && !loadedPayload\?\.mediaStreamUrl\) return;/,
+  "Load listeners must stay inert unless fallback, video transfer, or stream reload is required.");
 assert.match(source, /Page\.removeScriptToEvaluateOnNewDocument/,
   "Watcher shutdown and theme refresh must unregister persistent Page scripts.");
 

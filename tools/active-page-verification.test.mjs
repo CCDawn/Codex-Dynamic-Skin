@@ -5,9 +5,9 @@ import * as macos from '../macos/scripts/injector.mjs';
 import * as windows from '../windows/scripts/injector.mjs';
 
 const selectors = {
-  shell: 'main:is(.main-surface, [data-app-shell-main-surface], [class*="_MainContentSurface_"])',
+  shell: 'main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"])',
   sidebar: 'aside.app-shell-left-panel',
-  composer: ':is(.composer-surface-chrome, [class*="_ComposerLayoutRoot_"], [data-composer-surface-variant][data-composer-radius-variant])',
+  composer: ':is(.composer-surface-chrome, [class*="ComposerLayoutRoot"], [data-composer-surface-variant][data-composer-radius-variant])',
   home: '[role="main"]:has([data-testid="home-icon"])',
   icon: '[data-testid="home-icon"]',
   main: '[data-ds-part="main"], [data-ds-part="home"]',

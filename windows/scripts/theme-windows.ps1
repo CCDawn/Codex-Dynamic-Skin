@@ -565,6 +565,66 @@ function Test-DreamSkinLoopbackStreamUrl {
   }
 }
 
+function Get-DreamSkinSceneStreamCodecFromSample {
+  param(
+    [Parameter(Mandatory = $true)][byte[]]$Buffer,
+    [Parameter(Mandatory = $true)][int]$Length
+  )
+  # fMP4: the first 'avcC' sample description in the init data carries the
+  # real H.264 coding at +5 (profile), +6 (compat) and +7 (level) after the
+  # four-byte signature; +4 is configurationVersion and must equal 1. NVENC
+  # baseline streams encode avc1.42041f, not the previously hardcoded
+  # avc1.42c01f, so the codec string is measured instead of assumed.
+  if ($Length -lt 8) { return $null }
+  for ($i = 0; $i -le $Length - 8; $i++) {
+    if ($Buffer[$i] -ne 0x61 -or $Buffer[$i + 1] -ne 0x76 -or
+        $Buffer[$i + 2] -ne 0x63 -or $Buffer[$i + 3] -ne 0x43) { continue }
+    if ($Buffer[$i + 4] -ne 0x01) { continue }
+    $profile = $Buffer[$i + 5]
+    if ($profile -eq 0) { continue }
+    return ('avc1.{0:x2}{1:x2}{2:x2}' -f $profile, $Buffer[$i + 6], $Buffer[$i + 7])
+  }
+  return $null
+}
+
+function Assert-DreamSkinSceneStreamAvailable {
+  param([Parameter(Mandatory = $true)][string]$StreamUrl)
+  # One GET against the loopback stream: only the first block is read and the
+  # response is closed immediately, because the capture file keeps growing for
+  # as long as the scene runs and must never be downloaded in full.
+  $response = $null
+  $stream = $null
+  try {
+    $request = [System.Net.WebRequest]::Create($StreamUrl)
+    $request.Method = 'GET'
+    $request.Timeout = 5000
+    $request.ReadWriteTimeout = 5000
+    $response = $request.GetResponse()
+  } catch [System.Net.WebException] {
+    $statusCode = if ($_.Exception.Response) {
+      try { [int]$_.Exception.Response.StatusCode } catch { $null }
+    } else { $null }
+    if ($statusCode) {
+      throw ('场景流不可用：场景渲染器回环流返回了 HTTP {0}。' -f $statusCode)
+    }
+    throw ('场景流不可用：场景渲染器回环流无响应（{0}）。请重新应用场景壁纸。' -f $_.Exception.Message)
+  } catch {
+    throw ('场景流不可用：场景渲染器回环流无响应（{0}）。请重新应用场景壁纸。' -f $_.Exception.Message)
+  }
+  try {
+    $stream = $response.GetResponseStream()
+    $buffer = New-Object byte[] 1024
+    $received = $stream.Read($buffer, 0, $buffer.Length)
+  } finally {
+    if ($stream) { $stream.Close() }
+    $response.Close()
+  }
+  if ($received -lt 1) {
+    throw '场景流不可用：场景渲染器回环流未返回任何视频数据，可能 Wallpaper Engine 安装不完整。'
+  }
+  return Get-DreamSkinSceneStreamCodecFromSample -Buffer $buffer -Length $received
+}
+
 function Get-DreamSkinWallpaperEngineReference {
   param([AllowNull()][object]$Theme)
   if ($null -eq $Theme -or $null -eq $Theme.media) { return $null }
@@ -865,8 +925,8 @@ function Read-DreamSkinTheme {
   if ($declaredMediaType -ceq 'scene') {
     if ($mediaType -cne 'image' -or
         -not (Test-DreamSkinLoopbackStreamUrl -Url "$($theme.media.streamUrl)") -or
-        "$($theme.media.codec)" -cne 'avc1.42c01f') {
-      throw 'Scene themes require an image preview and a valid loopback H.264 stream.'
+        "$($theme.media.codec)" -cnotmatch '^avc1\.[0-9a-f]{6}$') {
+      throw 'Scene themes require an image preview and a valid loopback H.264 stream (avc1.XXYYZZ codec).'
     }
     $mediaType = 'scene'
   } elseif ($declaredMediaType -cne $mediaType) {
@@ -892,7 +952,9 @@ function Normalize-DreamSkinThemeContract {
     $Theme | Add-Member -NotePropertyName id -NotePropertyValue 'custom' -Force
   }
   if (-not $Theme.PSObject.Properties['appearance'] -or -not $Theme.PSObject.Properties['appearance'].Value) {
-    $Theme | Add-Member -NotePropertyName appearance -NotePropertyValue 'auto' -Force
+    # "none" is the default: wallpaper-only themes never touch Codex
+    # config.toml, and the renderer follows the native shell like "auto".
+    $Theme | Add-Member -NotePropertyName appearance -NotePropertyValue 'none' -Force
   }
   if (-not $Theme.PSObject.Properties['art'] -or -not $Theme.PSObject.Properties['art'].Value) {
     $Theme | Add-Member -NotePropertyName art -NotePropertyValue `
@@ -923,7 +985,9 @@ function Get-DreamSkinActiveThemeAppearance {
   param([Parameter(Mandatory = $true)][string]$ThemeDirectory)
   try {
     $appearance = "$((Read-DreamSkinTheme -ThemeDirectory $ThemeDirectory).Theme.appearance)"
-    if ($appearance -in @('light', 'dark')) { return $appearance }
+    # 'none' themes must never reach Install-DreamSkinBaseTheme: callers skip
+    # every Codex config.toml write for them.
+    if ($appearance -in @('light', 'dark', 'none')) { return $appearance }
   } catch {}
   return 'auto'
 }
@@ -1173,7 +1237,7 @@ function Set-DreamSkinActiveWallpaperEngineTheme {
       schemaVersion = 1
       id = 'wallpaper-engine-' + $reference.WorkshopId
       name = $reference.Name
-      appearance = 'auto'
+      appearance = 'none'
       art = [pscustomobject]@{ focusX = $null; focusY = $null; safeArea = 'auto'; taskMode = 'auto' }
       palette = [pscustomobject]@{}
       media = [pscustomobject]@{ type = 'video'; playbackRate = 1; opacity = 1 }
@@ -1216,7 +1280,7 @@ function Set-DreamSkinActiveWallpaperEngineTheme {
   $Theme | Add-Member -NotePropertyName media -NotePropertyValue $media -Force
   if ($Name) { $Theme | Add-Member -NotePropertyName name -NotePropertyValue $Name -Force }
   if (-not $Theme.id) { $Theme | Add-Member -NotePropertyName id -NotePropertyValue ('wallpaper-engine-' + $reference.WorkshopId) -Force }
-  if (-not $Theme.appearance) { $Theme | Add-Member -NotePropertyName appearance -NotePropertyValue 'auto' -Force }
+  if (-not $Theme.appearance) { $Theme | Add-Member -NotePropertyName appearance -NotePropertyValue 'none' -Force }
   if (-not $Theme.art) {
     $Theme | Add-Member -NotePropertyName art -NotePropertyValue `
       ([pscustomobject]@{ focusX = $null; focusY = $null; safeArea = 'auto'; taskMode = 'auto' }) -Force
@@ -1249,6 +1313,10 @@ function Set-DreamSkinActiveSceneStreamTheme {
   if ($reference.MediaType -cne 'scene' -or $reference.MediaPath -ine $fullScenePath) {
     throw 'Scene stream source does not match its Wallpaper Engine project.'
   }
+  $streamCodec = Assert-DreamSkinSceneStreamAvailable -StreamUrl $StreamUrl
+  if (-not $streamCodec) {
+    throw '场景流不可用：无法从回环流前几 KB 解析 H.264 编码（avcC），请重新应用场景壁纸。'
+  }
   $paths = Get-DreamSkinThemePaths -StateRoot $StateRoot
   Ensure-DreamSkinManagedDirectory -Path $paths.Active -Root $paths.Root
   $opacity = 1
@@ -1260,10 +1328,26 @@ function Set-DreamSkinActiveSceneStreamTheme {
   } catch {}
   $projectDirectory = $reference.WorkshopDirectory
   $preview = Get-ChildItem -LiteralPath $projectDirectory -File -Force -ErrorAction SilentlyContinue |
-    Where-Object { $_.BaseName -ceq 'preview' -and $_.Extension.ToLowerInvariant() -in @('.jpg', '.jpeg', '.png', '.webp') } |
+    Where-Object { $_.BaseName -ceq 'preview' -and $_.Extension.ToLowerInvariant() -in @('.jpg', '.jpeg', '.png', '.webp', '.gif') } |
     Select-Object -First 1
   if ($null -eq $preview) {
-    $previewPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'assets\dream-reference.jpg'
+    # No authored preview in the workshop item: fall back to the transparent
+    # blank asset — a missing preview must never stage unrelated sample art.
+    $previewPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'assets\blank.png'
+  } elseif ($preview.Extension.ToLowerInvariant() -ceq '.gif') {
+    # Wallpaper Engine items often ship only an animated preview.gif; keep the
+    # first frame as the staged PNG preview so the theme (and the manager
+    # card) shows the real scene instead of the fallback.
+    Add-Type -AssemblyName System.Drawing
+    $gifFramePath = Join-Path ([System.IO.Path]::GetTempPath()) ("dreamskin-preview-" + [guid]::NewGuid().ToString('N') + '.png')
+    $gifImage = $null
+    try {
+      $gifImage = [System.Drawing.Image]::FromFile($preview.FullName)
+      $gifImage.Save($gifFramePath, [System.Drawing.Imaging.ImageFormat]::Png)
+    } finally {
+      if ($null -ne $gifImage) { $gifImage.Dispose() }
+    }
+    $previewPath = $gifFramePath
   } else {
     $previewPath = $preview.FullName
   }
@@ -1271,6 +1355,9 @@ function Set-DreamSkinActiveSceneStreamTheme {
   $previewName = 'scene-preview' + [System.IO.Path]::GetExtension($previewPath).ToLowerInvariant()
   $activePreview = Join-Path $paths.Active $previewName
   Copy-Item -LiteralPath $previewPath -Destination $activePreview -Force
+  if ($previewPath -like (Join-Path ([System.IO.Path]::GetTempPath()) 'dreamskin-preview-*')) {
+    Remove-Item -LiteralPath $previewPath -Force -ErrorAction SilentlyContinue
+  }
   Assert-DreamSkinImageFile -Path $activePreview
   if (-not $Name) { $Name = $reference.Name }
   $theme = [pscustomobject]@{
@@ -1278,7 +1365,7 @@ function Set-DreamSkinActiveSceneStreamTheme {
     id = 'wallpaper-engine-scene-' + $reference.WorkshopId
     name = $Name
     image = $previewName
-    appearance = 'auto'
+    appearance = 'none'
     art = [pscustomobject]@{
       focusX = $null
       focusY = $null
@@ -1289,7 +1376,7 @@ function Set-DreamSkinActiveSceneStreamTheme {
     media = [pscustomobject]@{
       type = 'scene'
       streamUrl = $StreamUrl
-      codec = 'avc1.42c01f'
+      codec = $streamCodec
       playbackRate = 1
       opacity = $opacity
       scenePath = $fullScenePath
@@ -1327,7 +1414,7 @@ function Set-DreamSkinActiveTheme {
       schemaVersion = 1
       id = 'custom'
       name = '自定义主题'
-      appearance = 'auto'
+      appearance = 'none'
       art = [pscustomobject]@{ focusX = $null; focusY = $null; safeArea = 'auto'; taskMode = 'auto' }
       media = [pscustomobject]@{ type = $mediaType; playbackRate = 1; opacity = 1 }
     }

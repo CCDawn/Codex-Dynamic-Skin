@@ -37,3 +37,6 @@ PROJECT_MEMORY.html
 windows/theme-manager/**/bin/
 windows/theme-manager/**/obj/
 windows/assets/theme-manager/
+
+# Local iteration build outputs (r-numbered Manager exe drops)
+release-v1.7.3-r*/

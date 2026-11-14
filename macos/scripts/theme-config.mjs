@@ -16,9 +16,12 @@ if (!["install", "restore"].includes(mode) || !configPath || !backupPath) {
   throw new Error("Usage: theme-config.mjs <install|restore> <config-path> <backup-path> [appearance]");
 }
 const appearance = appearanceArg || "auto";
-if (!["auto", "light", "dark"].includes(appearance)) {
-  throw new Error(`Unsupported appearance "${appearanceArg}"; expected auto, light, or dark.`);
+if (!["auto", "light", "dark", "none"].includes(appearance)) {
+  throw new Error(`Unsupported appearance "${appearanceArg}"; expected auto, light, dark, or none.`);
 }
+// "none" (the wallpaper-only default) must not leave any trace in the user's
+// config: it never pins and always restores the pre-install line.
+const pinsAppearance = appearance === "light" || appearance === "dark";
 
 function tomlStructureForLine(line) {
   let result = "";
@@ -319,18 +322,18 @@ async function main() {
     // writes the pre-install line back so the user's own choice returns.
     const backup = JSON.parse(decodeStrictUtf8(await fs.readFile(backupPath), "Theme backup"));
     validateBackup(backup);
-    const desired = appearance === "auto"
-      ? backup.values.appearanceTheme ?? null
-      : `appearanceTheme = "${appearance}"`;
+    const desired = pinsAppearance
+      ? `appearanceTheme = "${appearance}"`
+      : backup.values.appearanceTheme ?? null;
     const body = replaceSetting(section.body, "appearanceTheme", desired);
     if (body !== section.body) {
       const updated = content.slice(0, section.bodyStart) + body + content.slice(section.bodyEnd);
       await assertConfigUnchanged(originalBytes, originalStat);
       await atomicWrite(configPath, updated, originalStat.mode & 0o777, originalBytes, originalStat);
     }
-    console.log(appearance === "auto"
-      ? "Saved base-theme backup; left Codex appearanceTheme at the user's own value (auto theme adapts to either shell)."
-      : `Saved base-theme backup; pinned Codex appearanceTheme = "${appearance}" to match the theme (Restore puts the original back).`);
+    console.log(pinsAppearance
+      ? `Saved base-theme backup; pinned Codex appearanceTheme = "${appearance}" to match the theme (Restore puts the original back).`
+      : "Saved base-theme backup; left Codex appearanceTheme at the user's own value (auto and wallpaper-only themes never pin it).");
     return;
   }
 

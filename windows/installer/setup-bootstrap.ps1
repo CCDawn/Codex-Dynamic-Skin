@@ -117,7 +117,8 @@ try {
   $requiredEngineFiles = @(
     'VERSION',
     'assets\codex-dream-skin.ico',
-    'assets\dream-reference.jpg',
+    'assets\blank.png',
+    'assets\default-preset.jpg',
     'assets\dream-skin.css',
     'assets\renderer-inject.js',
     'assets\safe-css-policy.json',

@@ -1188,7 +1188,7 @@ try {
   if ($null -eq $gothicSeed -or $gothicSeed.Name -cne 'Gothic Void Crusade') {
     throw 'Gothic Void Crusade was not preseeded with the expected display name.'
   }
-  $updatedTheme = Set-DreamSkinActiveTheme -ImagePath (Join-Path $Root 'assets\dream-reference.jpg') `
+  $updatedTheme = Set-DreamSkinActiveTheme -ImagePath (Join-Path $Root 'assets\blank.png') `
     -Theme $null -Name '测试主题' -StateRoot $themeStateRoot
   if ($updatedTheme.Theme.name -cne '测试主题' -or
     $updatedTheme.Theme.id -cne 'custom' -or
@@ -1216,10 +1216,10 @@ try {
     }
   }
   $beforeBackgroundUpdate = Set-DreamSkinActiveTheme `
-    -ImagePath (Join-Path $Root 'assets\dream-reference.jpg') `
+    -ImagePath (Join-Path $Root 'assets\blank.png') `
     -Theme $preservedContract -SafeCssPath $safeCssFixture -StateRoot $themeStateRoot
   $backgroundOnlyUpdate = Set-DreamSkinActiveThemeImage `
-    -ImagePath (Join-Path $Root 'assets\dream-reference.jpg') -StateRoot $themeStateRoot
+    -ImagePath (Join-Path $Root 'assets\blank.png') -StateRoot $themeStateRoot
   $preservedCssPath = Join-Path $themePaths.Active 'theme.css'
   if ($backgroundOnlyUpdate.Theme.id -cne 'preserved-theme' -or
     $backgroundOnlyUpdate.Theme.name -cne '保留主题配置' -or
@@ -1280,10 +1280,10 @@ try {
   Copy-Item -LiteralPath (Join-Path $publicPresetRoot 'theme.json') `
     -Destination $releaseFixturePresetDirectory -Force
   Copy-Item -LiteralPath (Join-Path $publicPresetRoot 'background.jpg') `
-    -Destination (Join-Path $releaseFixtureAssets 'dream-reference.jpg') -Force
+    -Destination (Join-Path $releaseFixtureAssets 'blank.png') -Force
   $releaseFixtureTheme = (Read-DreamSkinUtf8File -Path (Join-Path $publicPresetRoot 'theme.json')) |
     ConvertFrom-Json
-  $releaseFixtureTheme.image = 'dream-reference.jpg'
+  $releaseFixtureTheme.image = 'blank.png'
   Write-DreamSkinUtf8FileAtomically -Path (Join-Path $releaseFixtureAssets 'theme.json') `
     -Content (($releaseFixtureTheme | ConvertTo-Json -Depth 8) + "`r`n")
   $releaseThemePaths = Initialize-DreamSkinThemeStore -SkillRoot $releaseFixtureRoot `
@@ -1514,8 +1514,8 @@ try {
 
   $outsideTheme = Join-Path $temporaryRoot 'outside-theme'
   New-Item -ItemType Directory -Path $outsideTheme | Out-Null
-  Copy-Item -LiteralPath (Join-Path $Root 'assets\dream-reference.jpg') `
-    -Destination (Join-Path $outsideTheme 'dream-reference.jpg')
+  Copy-Item -LiteralPath (Join-Path $Root 'assets\blank.png') `
+    -Destination (Join-Path $outsideTheme 'blank.png')
   Copy-Item -LiteralPath (Join-Path $Root 'assets\theme.json') `
     -Destination (Join-Path $outsideTheme 'theme.json')
   $junctionTheme = Join-Path $themePaths.Saved 'junction-escape'

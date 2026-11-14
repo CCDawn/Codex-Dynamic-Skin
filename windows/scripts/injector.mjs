@@ -506,7 +506,11 @@ async function connectBrowserIdentityAnchor(port, expectedBrowserId) {
 }
 
 const THEME_CHOICES = {
-  appearance: new Set(["auto", "light", "dark"]),
+  // "none" keeps the PowerShell side entirely away from Codex config.toml:
+  // no appearanceTheme pin, no managed light-code/chrome keys, no transaction.
+  // It renders like "auto" (the shell follows Codex/OS natively).
+  appearance: new Set(["auto", "light", "dark", "none"]),
+  ui: new Set(["wallpaper-only", "full"]),
   safeArea: new Set(["auto", "left", "right", "center", "none"]),
   taskMode: new Set(["auto", "ambient", "banner", "full", "off"]),
 };
@@ -734,8 +738,11 @@ export async function loadTheme(themeDir, preferenceOptions = {}) {
   if (sceneStream !== Boolean(streamUrl)) {
     throw new Error("media.type scene and media.streamUrl must be used together");
   }
-  if (sceneStream && rawMedia.codec !== "avc1.42c01f") {
-    throw new Error("Scene streams require media.codec avc1.42c01f");
+  if (sceneStream && (typeof rawMedia.codec !== "string" ||
+      !/^avc1\.[0-9a-f]{6}$/.test(rawMedia.codec))) {
+    throw new Error(
+      "Scene streams require media.codec avc1.XXYYZZ as measured from the stream's avcC box",
+    );
   }
   const wallpaperEngineReference = normalizeWallpaperEngineReference(rawMedia);
   const mediaFile = normalizedText(raw.image, "image", null, 240);
@@ -853,7 +860,8 @@ export async function loadTheme(themeDir, preferenceOptions = {}) {
     statusText: normalizeThemeText(raw.statusText, "DREAM SKIN ONLINE", 120, "statusText", themePath),
     quote: normalizeThemeText(raw.quote, "MAKE SOMETHING WONDERFUL", 120, "quote", themePath),
     image: mediaFile,
-    appearance: normalizedChoice(raw.appearance, "appearance", THEME_CHOICES.appearance, "auto"),
+    appearance: normalizedChoice(raw.appearance, "appearance", THEME_CHOICES.appearance, "none"),
+    ui: normalizedChoice(raw.ui, "ui", THEME_CHOICES.ui, "wallpaper-only"),
     art: {
       focusX: normalizedUnit(art.focusX, "art.focusX"),
       focusY: normalizedUnit(art.focusY, "art.focusY"),
@@ -872,7 +880,9 @@ export async function loadTheme(themeDir, preferenceOptions = {}) {
   };
   if (sceneStream) {
     theme.media.streamUrl = streamUrl;
-    theme.media.codec = "avc1.42c01f";
+    // The theme's codec was measured from the stream's avcC box when the
+    // scene theme was written; pass it through instead of assuming a constant.
+    theme.media.codec = rawMedia.codec;
   }
   if (wallpaperEngineReference) {
     theme.media.source = "wallpaper-engine-local";
@@ -955,7 +965,14 @@ export async function loadPayload(themeDir = path.join(root, "assets"), candidat
   ]);
   const combinedCss = loadedTheme.safeCssRuntime
     ? `${css}\n${loadedTheme.safeCssRuntime}\n` : css;
-  const isImageArt = ["image", "stream"].includes(loadedTheme.mediaType) && Boolean(loadedTheme.imageBytes);
+  // Static image themes ship their wallpaper as the CSS art layer. Scene
+  // stream themes must NOT: the staged poster can be a placeholder (it has
+  // shipped as the bundled reference portrait), and painting it on the body
+  // replaces Codex's own loading page with an unrelated picture until the
+  // video layer attaches. Streams carry the wallpaper through
+  // #codex-dream-skin-media; runtime poster transport still swaps in a real
+  // captured frame if the video element is ever reclaimed.
+  const isImageArt = loadedTheme.mediaType === "image" && Boolean(loadedTheme.imageBytes);
   const artDataUrl = isImageArt
     ? `data:${loadedTheme.artMime ?? "image/png"};base64,${loadedTheme.imageBytes.toString("base64")}`
     : "";
@@ -1270,12 +1287,70 @@ export async function setStreamCspBypass(session, enabled) {
   if (session.dreamSkinStreamCspBypass === requested) return requested;
   await session.send("Page.setBypassCSP", { enabled: requested });
   session.dreamSkinStreamCspBypass = requested;
+  // Re-enabling the bypass needs one more reload to reach the live document,
+  // so the once-per-session reload marker resets with the bypass.
+  if (!requested) session.dreamSkinStreamCspReloaded = false;
   return requested;
+}
+
+async function reloadForStreamCspBypass(session, streamEnabled, streamUrl) {
+  // Chromium only applies Page.setBypassCSP to documents loaded after the
+  // flag flips; the live document keeps its original CSP and still rejects
+  // the loopback stream (measured on Codex 26.1103). Reload once per session
+  // when a reinjection fallback is attached — the load fallback and the
+  // registered early script reapply the theme on the next document. The
+  // per-session marker prevents reload loops.
+  if (!streamEnabled || session.dreamSkinStreamCspReloaded ||
+      !session.dreamSkinStreamReinjectOnLoad) {
+    return false;
+  }
+  // Documents born after a reload (or attached before load with the bypass
+  // already set) can fetch the loopback stream; reloading those merely
+  // flashes the UI on every theme re-apply. Probe first, reload only when
+  // the live document is actually blocked.
+  if (streamUrl) {
+    try {
+      const allowed = await session.evaluate(
+        `(async () => {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 2500);
+          try {
+            await fetch(${JSON.stringify(streamUrl)}, { cache: 'no-store', signal: controller.signal });
+            clearTimeout(timer);
+            return true;
+          } catch (error) {
+            clearTimeout(timer);
+            return error && error.name === 'AbortError';
+          }
+        })()`,
+        { awaitPromise: true },
+      );
+      if (allowed === true) {
+        session.dreamSkinStreamCspReloaded = true;
+        return false;
+      }
+    } catch {
+      // Probe failures fall through to the reload path.
+    }
+  }
+  session.dreamSkinStreamCspReloaded = true;
+  try {
+    await session.send("Page.reload", { ignoreCache: false });
+    console.log("[dream-skin] reloaded target once so the stream CSP bypass takes effect");
+  } catch (error) {
+    console.error(`[dream-skin] stream CSP reload failed: ${error.message}`);
+  }
+  return true;
 }
 
 async function applyToSession(session, loadedPayload) {
   const streamEnabled = Boolean(loadedPayload.mediaStreamUrl);
   await setStreamCspBypass(session, streamEnabled);
+  if (await reloadForStreamCspBypass(session, streamEnabled, loadedPayload.mediaStreamUrl)) {
+    // The bypass only reaches the next document; yield this pass and let the
+    // load fallback plus the registered early script reapply the theme.
+    return { reloaded: true };
+  }
   try {
     const result = await session.evaluate(loadedPayload.payload);
     if (loadedPayload.mediaType === "video" && !streamEnabled) {
@@ -1777,11 +1852,20 @@ export async function verifySession(
         result.suggestionLabelColorsMatch
       ))
     );
+    // A hidden document whose shell is installed, structured and in-viewport
+    // is a deferred-render session, not a failed one: the renderer's revival
+    // machinery (stream revive / element rebuild on visibilitychange) starts
+    // the wallpaper the moment the user actually looks at the window. Requiring
+    // live visibility and streaming evidence here fails every start launched
+    // while the user is in another maximized window.
+    const visibilityDeferred = !documentPass && windowPass && viewportPass && structurePass &&
+      result.installed && result.stylePresent;
+    result.readiness.visibilityDeferred = visibilityDeferred;
     result.pass = result.installed && result.version === result.expectedVersion &&
       result.stylePresent && result.businessClassPollution === 0 && !result.documentOverflow.x &&
-      windowPass && documentPass && viewportPass && structurePass &&
+      windowPass && (documentPass || visibilityDeferred) && viewportPass && structurePass &&
       payloadPass && homePass &&
-      (result.mediaType !== 'video' ||
+      (visibilityDeferred || result.mediaType !== 'video' ||
         (result.transport === 'poster'
           ? result.posterReady
           : (Number.isFinite(result.wallpaperReveal) && result.wallpaperReveal >= 0 &&
@@ -2011,9 +2095,12 @@ async function runWatch(options) {
   const attachLoadFallback = (id, target, session) => {
     if (fallbackListeners.has(id)) return;
     fallbackListeners.add(id);
+    // Marks that this session re-injects the theme after a navigation, which
+    // makes the one-shot stream CSP reload in applyToSession safe.
+    session.dreamSkinStreamReinjectOnLoad = true;
     let lastReinjectErrorLogAt = 0;
     session.on("Page.loadEventFired", () => {
-      if (!fallbackTargets.get(id) && loadedPayload?.mediaType !== "video") return;
+      if (!fallbackTargets.get(id) && loadedPayload?.mediaType !== "video" && !loadedPayload?.mediaStreamUrl) return;
       setTimeout(() => {
         const operation = paused ? removeFromSession(session) : applyToSession(session, loadedPayload);
         operation.catch((error) => {
@@ -2134,7 +2221,9 @@ async function runWatch(options) {
               if (nextEarlyScript) earlyScripts.set(id, nextEarlyScript);
               else earlyScripts.delete(id);
               await removeEarlyPayload(session, previousEarlyScript);
-              if (loadedPayload.mediaType === "video") {
+              // Stream themes share the video need for the load fallback:
+              // their one-shot CSP-bypass reload depends on its marker.
+              if (loadedPayload.mediaType === "video" || loadedPayload.mediaStreamUrl) {
                 attachLoadFallback(id, { id }, session);
               }
               if (opacityOnlyChanged) {
@@ -2209,8 +2298,19 @@ async function runWatch(options) {
             continue;
           }
           fallbackTargets.set(target.id, earlyInjectionFallback);
-          if (earlyInjectionFallback || loadedPayload.mediaType === "video") {
+          const streamEnabledAtAttach = Boolean(loadedPayload.mediaStreamUrl);
+          // Stream themes need the CSP bypass active before their document
+          // loads; when the attach lands on an already-loaded page the bypass
+          // only reaches the NEXT document, so the load fallback (which owns
+          // the one-shot reload marker) must be attached for them too.
+          if (earlyInjectionFallback || loadedPayload.mediaType === "video" || streamEnabledAtAttach) {
             attachLoadFallback(target.id, target, session);
+          }
+          // Codex 26.1103 enforces page CSP against the loopback stream:
+          // enable the bypass as early as possible so a still-loading
+          // document inherits it.
+          if (!paused && streamEnabledAtAttach) {
+            await setStreamCspBypass(session, true).catch(() => {});
           }
           if (identityAnchor.closed) throw new CdpIdentityMismatchError("Original CDP browser identity closed");
           let earlyApplied = false;
@@ -2220,7 +2320,10 @@ async function runWatch(options) {
             ).catch(() => false);
           }
           if (paused) await removeFromSession(session);
-          else if (!earlyApplied || loadedPayload.mediaType === "video") {
+          // Stream themes always go through applyToSession even when the
+          // early script already applied: it owns the CSP-bypass enable and
+          // the one-shot reload decision for pages loaded before the bypass.
+          else if (!earlyApplied || loadedPayload.mediaType === "video" || streamEnabledAtAttach) {
             await applyToSession(session, loadedPayload);
           }
           sessions.set(target.id, session);
@@ -2319,6 +2422,7 @@ if (path.resolve(process.argv[1] || "") === path.resolve(scriptPath)) {
       payloadBytes: Buffer.byteLength(loaded.payload),
       themeId: loaded.theme.id,
       appearance: loaded.theme.appearance,
+      ui: loaded.theme.ui,
       colorMode: loaded.theme.colorMode,
       explicitColorKeys: loaded.theme.explicitColorKeys,
       hasColors: !!loaded.theme.colors && typeof loaded.theme.colors === "object",
