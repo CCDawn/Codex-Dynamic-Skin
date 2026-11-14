@@ -35,6 +35,12 @@ internal sealed class WallpaperEngineDialog : Form
     Font = new Font("Segoe UI Variable Text", 10f, FontStyle.Regular, GraphicsUnit.Point);
 
     BuildLayout();
+    // Scale after all children exist: the assignment arms required-scaling and
+    // the next layout pass scales the tree by the live DPI factor.
+    AutoScaleMode = AutoScaleMode.Dpi;
+    AutoScaleDimensions = new SizeF(96F, 96F);
+    ResumeLayout(false);
+    PerformLayout();
     Shown += async (_, _) => await ReloadItemsAsync();
   }
 

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace CodexDreamSkin.Manager;
 
@@ -35,7 +36,8 @@ internal sealed class DreamSkinService : IDisposable
       _runtime.StartScript,
       arguments,
       cancellationToken,
-      captureOutput: false);
+      captureOutput: true,
+      timeoutMilliseconds: PowerShellRunner.StartTimeoutMilliseconds);
     result.ThrowIfFailed("启动 Codex 动态壁纸");
   }
 
@@ -72,7 +74,6 @@ internal sealed class DreamSkinService : IDisposable
   public async Task<IReadOnlyList<WallpaperEngineItem>> ListWallpaperEngineAsync(
     CancellationToken cancellationToken = default)
   {
-    await _sceneStream.StopAsync();
     var result = await RunManagerCommandAsync(
       new[] { "-Action", "ListWallpaperEngine" },
       cancellationToken);
@@ -134,6 +135,46 @@ internal sealed class DreamSkinService : IDisposable
         await _sceneStream.StopAsync();
       }
       throw;
+    }
+  }
+
+  // Falls back to the scene's static preview image after the live stream path
+  // failed; keeps the desktop usable instead of leaving a dead stream theme.
+  public async Task ApplyWallpaperEngineSceneFallbackAsync(
+    string mediaPath,
+    Exception origin,
+    CancellationToken cancellationToken = default)
+  {
+    var previewPath = FindWallpaperEngineScenePreview(mediaPath)
+      ?? throw new InvalidOperationException($"{origin.Message}；也未找到可回退的静态预览图。", origin);
+    await _sceneStream.StopAsync();
+    await ApplyWallpaperAsync(previewPath, cancellationToken);
+  }
+
+  private static string? FindWallpaperEngineScenePreview(string mediaPath)
+  {
+    var projectDirectory = Path.GetDirectoryName(Path.GetFullPath(mediaPath));
+    if (string.IsNullOrWhiteSpace(projectDirectory) || !Directory.Exists(projectDirectory))
+    {
+      return null;
+    }
+    var extensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+      ".jpg", ".jpeg", ".png", ".webp",
+    };
+    try
+    {
+      return Directory
+        .EnumerateFiles(projectDirectory, "preview.*", SearchOption.TopDirectoryOnly)
+        .FirstOrDefault(path => extensions.Contains(Path.GetExtension(path)));
+    }
+    catch (IOException)
+    {
+      return null;
+    }
+    catch (UnauthorizedAccessException)
+    {
+      return null;
     }
   }
 
@@ -199,6 +240,118 @@ internal sealed class DreamSkinService : IDisposable
     result.ThrowIfFailed("调整壁纸透出程度");
   }
 
+  // Panel translucency (frosted-glass strength) rides the existing theme
+  // preferences chain: theme-preferences.json stores
+  // themes.<activeThemeId>.transparency (0 = most solid, 100 = most
+  // translucent), the running injector watcher polls that file, folds the
+  // value into the payload fingerprint and hot-applies it through the
+  // renderer's --ds-user-surface-alpha knob — no Codex restart, no extra
+  // injection channel.
+  public async Task SetPanelTransparencyAsync(int percent, CancellationToken cancellationToken = default)
+  {
+    if (percent is < 0 or > 100)
+    {
+      throw new ArgumentOutOfRangeException(nameof(percent));
+    }
+    var themeId = await GetActiveThemeIdAsync(cancellationToken);
+    if (string.IsNullOrWhiteSpace(themeId))
+    {
+      throw new InvalidOperationException("当前没有已应用的动态壁纸主题，请先应用一个壁纸。");
+    }
+    var preferencesPath = ThemePreferencesPath;
+    JsonObject root;
+    try
+    {
+      root = JsonNode.Parse(await File.ReadAllTextAsync(preferencesPath, cancellationToken)) as JsonObject
+        ?? new JsonObject();
+    }
+    catch (Exception exception) when (
+      exception is JsonException or FileNotFoundException or DirectoryNotFoundException or IOException)
+    {
+      // Missing or unreadable preferences start a fresh document; the injector
+      // treats an unreadable file the same way (theme transparency defaults).
+      root = new JsonObject();
+    }
+    root["schemaVersion"] = 1;
+    if (root["themes"] is not JsonObject themes)
+    {
+      themes = new JsonObject();
+    }
+    if (themes[themeId] is not JsonObject entry)
+    {
+      entry = new JsonObject();
+    }
+    entry["transparency"] = percent;
+    themes[themeId] = entry;
+    root["themes"] = themes;
+    Directory.CreateDirectory(_runtime.StateRoot);
+    var temporaryPath = $"{preferencesPath}.{Guid.NewGuid():N}.tmp";
+    try
+    {
+      await File.WriteAllTextAsync(
+        temporaryPath,
+        root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }),
+        cancellationToken);
+      File.Move(temporaryPath, preferencesPath, overwrite: true);
+    }
+    finally
+    {
+      if (File.Exists(temporaryPath))
+      {
+        try { File.Delete(temporaryPath); } catch (IOException) { }
+      }
+    }
+  }
+
+  private string ThemePreferencesPath => Path.Combine(_runtime.StateRoot, "theme-preferences.json");
+
+  private async Task<string?> GetActiveThemeIdAsync(CancellationToken cancellationToken)
+  {
+    var themePath = Path.Combine(_runtime.StateRoot, "active-theme", "theme.json");
+    if (!File.Exists(themePath))
+    {
+      return null;
+    }
+    using var theme = JsonDocument.Parse(await File.ReadAllTextAsync(themePath, cancellationToken));
+    return theme.RootElement.TryGetProperty("id", out var idElement) &&
+      idElement.ValueKind == JsonValueKind.String
+        ? idElement.GetString()
+        : null;
+  }
+
+  private static int? ReadPanelTransparencyPercent(string? preferencesPath, string? themeId)
+  {
+    if (string.IsNullOrWhiteSpace(themeId) || !File.Exists(preferencesPath))
+    {
+      return null;
+    }
+    try
+    {
+      using var document = JsonDocument.Parse(File.ReadAllText(preferencesPath));
+      var root = document.RootElement;
+      if (!root.TryGetProperty("schemaVersion", out var schema) ||
+          schema.ValueKind != JsonValueKind.Number ||
+          schema.GetInt32() != 1 ||
+          !root.TryGetProperty("themes", out var themes) ||
+          themes.ValueKind != JsonValueKind.Object ||
+          !themes.TryGetProperty(themeId, out var entry) ||
+          entry.ValueKind != JsonValueKind.Object ||
+          !entry.TryGetProperty("transparency", out var transparency) ||
+          !transparency.TryGetInt32(out var percent) ||
+          percent is < 0 or > 100)
+      {
+        return null;
+      }
+      return percent;
+    }
+    catch
+    {
+      // Status rendering stays available even while the preferences file is
+      // being replaced atomically or holds a partially written document.
+      return null;
+    }
+  }
+
   public async Task SetPausedAsync(bool paused, CancellationToken cancellationToken = default)
   {
     if (!paused)
@@ -235,7 +388,8 @@ internal sealed class DreamSkinService : IDisposable
     var result = await _runner.RunScriptAsync(
       _runtime.RestoreScript,
       arguments,
-      cancellationToken);
+      cancellationToken,
+      timeoutMilliseconds: PowerShellRunner.RestoreTimeoutMilliseconds);
     result.ThrowIfFailed("恢复 Codex 官方外观");
   }
 
@@ -246,6 +400,7 @@ internal sealed class DreamSkinService : IDisposable
     var paused = File.Exists(Path.Combine(_runtime.StateRoot, "paused"));
     var watcherRunning = false;
     string? activeTheme = null;
+    string? activeThemeId = null;
     string? mediaPath = null;
     WallpaperKind? mediaKind = null;
     var reveal = 100;
@@ -287,6 +442,11 @@ internal sealed class DreamSkinService : IDisposable
         if (theme.RootElement.TryGetProperty("name", out var nameElement))
         {
           activeTheme = nameElement.GetString();
+        }
+        if (theme.RootElement.TryGetProperty("id", out var idElement) &&
+            idElement.ValueKind == JsonValueKind.String)
+        {
+          activeThemeId = idElement.GetString();
         }
         if (theme.RootElement.TryGetProperty("image", out var imageElement))
         {
@@ -332,13 +492,18 @@ internal sealed class DreamSkinService : IDisposable
       activeTheme,
       mediaPath,
       mediaKind,
-      reveal);
+      reveal,
+      ReadPanelTransparencyPercent(ThemePreferencesPath, activeThemeId));
   }
 
   private Task<ProcessResult> RunManagerCommandAsync(
     IEnumerable<string> arguments,
     CancellationToken cancellationToken) =>
-    _runner.RunScriptAsync(_runtime.ManagerCommandScript, arguments, cancellationToken);
+    _runner.RunScriptAsync(
+      _runtime.ManagerCommandScript,
+      arguments,
+      cancellationToken,
+      timeoutMilliseconds: PowerShellRunner.DefaultTimeoutMilliseconds);
 
   private static SavedTheme ParseThemeResult(string json)
   {

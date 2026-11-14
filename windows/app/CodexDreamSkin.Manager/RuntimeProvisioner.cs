@@ -10,8 +10,8 @@ internal sealed class RuntimeProvisioner
   private static readonly IReadOnlyDictionary<string, string> ResourceMap =
     new Dictionary<string, string>(StringComparer.Ordinal)
     {
+      ["Engine.assets.blank.png"] = @"payload\assets\blank.png",
       ["Engine.assets.compat-profile-client.mjs"] = @"payload\assets\compat-profile-client.mjs",
-      ["Engine.assets.dream-reference.jpg"] = @"payload\assets\dream-reference.jpg",
       ["Engine.assets.dream-skin.css"] = @"payload\assets\dream-skin.css",
       ["Engine.assets.renderer-inject.js"] = @"payload\assets\renderer-inject.js",
       ["Engine.assets.safe-css-validator.mjs"] = @"payload\assets\safe-css-validator.mjs",

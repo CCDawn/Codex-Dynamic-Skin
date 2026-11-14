@@ -1,4 +1,7 @@
 using System.Diagnostics;
+using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -6,6 +9,7 @@ namespace CodexDreamSkin.Manager;
 
 internal sealed class SceneStreamHost : IDisposable
 {
+  private static readonly HttpClient StreamProbeClient = new();
   private readonly RuntimeProvisioner _runtime;
   private Process? _process;
   private string? _streamFile;
@@ -47,7 +51,8 @@ internal sealed class SceneStreamHost : IDisposable
     var assetsPath = string.IsNullOrWhiteSpace(steamApps)
       ? null
       : Path.Combine(steamApps, "common", "wallpaper_engine", "assets");
-    if (string.IsNullOrWhiteSpace(assetsPath) || !Directory.Exists(assetsPath))
+    if (string.IsNullOrWhiteSpace(assetsPath) || !Directory.Exists(assetsPath) ||
+        !Directory.EnumerateDirectories(assetsPath).Any())
     {
       throw new InvalidOperationException("未找到 Wallpaper Engine assets 目录，请确认 Wallpaper Engine 已安装。");
     }
@@ -130,6 +135,7 @@ internal sealed class SceneStreamHost : IDisposable
         }
         throw new InvalidOperationException($"场景渲染器启动失败：{error.Trim()}");
       }
+      await ValidateStreamLivenessAsync(streamUrl, cancellationToken);
       _ = DrainAsync(process.StandardOutput);
       return streamUrl;
     }
@@ -193,6 +199,79 @@ internal sealed class SceneStreamHost : IDisposable
     }
     _disposed = true;
     DisposeProcessImmediately();
+  }
+
+  // The "stream ready" line only proves the loopback endpoint opened; the
+  // headless encoder can still produce zero frames. Probe the HTTP stream and
+  // the growing capture file while the renderer is still alive, before any
+  // cleanup runs, so failures surface with a precise cause.
+  private async Task ValidateStreamLivenessAsync(string streamUrl, CancellationToken cancellationToken)
+  {
+    var readyLength = GetStreamFileLength();
+    var receivedBytes = 0;
+    try
+    {
+      using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+      timeout.CancelAfter(TimeSpan.FromSeconds(5));
+      using var request = new HttpRequestMessage(HttpMethod.Get, streamUrl);
+      request.Headers.Range = new RangeHeaderValue(0, 1023);
+      using var response = await StreamProbeClient.SendAsync(
+        request,
+        HttpCompletionOption.ResponseHeadersRead,
+        timeout.Token);
+      if (response.StatusCode != HttpStatusCode.OK &&
+          response.StatusCode != HttpStatusCode.PartialContent)
+      {
+        throw new InvalidOperationException(
+          $"场景流不可用：回环流服务返回了 HTTP {(int)response.StatusCode}。");
+      }
+      await using var payload = await response.Content.ReadAsStreamAsync(timeout.Token);
+      receivedBytes = await payload.ReadAsync(new byte[1024], timeout.Token);
+    }
+    catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+    {
+      throw new InvalidOperationException("场景流不可用：回环流服务未在 5 秒内返回数据。");
+    }
+    catch (HttpRequestException exception)
+    {
+      throw new InvalidOperationException($"场景流不可用：回环流服务无响应（{exception.Message}）。");
+    }
+    catch (IOException exception)
+    {
+      throw new InvalidOperationException($"场景流不可用：回环流数据读取失败（{exception.Message}）。");
+    }
+    if (receivedBytes < 1)
+    {
+      throw new InvalidOperationException("场景流不可用：回环流服务未返回任何视频数据。");
+    }
+    await Task.Delay(TimeSpan.FromSeconds(3), cancellationToken);
+    var currentLength = GetStreamFileLength();
+    if (currentLength <= 0 || currentLength <= readyLength)
+    {
+      throw new InvalidOperationException(
+        "场景渲染器已就绪但未产出任何视频数据，可能 Wallpaper Engine 安装不完整。");
+    }
+  }
+
+  private long GetStreamFileLength()
+  {
+    var streamFile = _streamFile;
+    if (string.IsNullOrWhiteSpace(streamFile) || !File.Exists(streamFile))
+    {
+      return 0;
+    }
+    try
+    {
+      return new FileInfo(streamFile).Length;
+    }
+    catch (IOException)
+    {
+      return 0;
+    }
+    catch (UnauthorizedAccessException)
+    {
+      return 0;
+    }
   }
 
   private string ResolveViewerPath()
