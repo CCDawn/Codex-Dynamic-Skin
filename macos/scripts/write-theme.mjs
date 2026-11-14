@@ -130,9 +130,13 @@ const quote = validateText(
   120,
   "MAKE SOMETHING WONDERFUL",
 );
-const appearance = validateChoice(valueFor("appearance", "none"), "appearance", ["auto", "light", "dark", "none"]);
+// Studio custom themes keep the classic full-skin defaults: appearance "auto"
+// and an explicit ui "full" so the color/tagline arguments stay meaningful.
+// The shipped default themes and the loader default remain wallpaper-only;
+// users can still pass --ui wallpaper-only or --appearance none.
+const appearance = validateChoice(valueFor("appearance", "auto"), "appearance", ["auto", "light", "dark", "none"]);
 const safeArea = validateChoice(valueFor("safe-area", "auto"), "safe-area", ["auto", "left", "right", "center", "none"]);
-const ui = validateChoice(valueFor("ui", "wallpaper-only"), "ui", ["wallpaper-only", "full"]);
+const ui = validateChoice(valueFor("ui", "full"), "ui", ["wallpaper-only", "full"]);
 const taskMode = validateChoice(
   valueFor("task-mode", "auto"),
   "task-mode",

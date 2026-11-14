@@ -197,6 +197,7 @@ test("normal L1 renderer requires and records the exact target window binding", 
     structurePass: true,
     nativeWindowPass: true,
     fallbackWindowPass: false,
+    visibilityDeferred: false,
   });
   assert.deepEqual(session.calls, [
     { method: "Browser.getWindowForTarget", params: { targetId: "page-main" } },
@@ -476,9 +477,13 @@ test("minimized and undersized native windows fail closed", async () => {
   assert.equal(onePixel.result.nativeWindow.reason, "window-bounds-too-small");
 });
 
-test("hidden documents and unreasonable viewports cannot pass", async () => {
+test("hidden documents defer instead of failing; unreasonable viewports cannot pass", async () => {
+  // A hidden document with installed, structured, in-viewport shell is a
+  // deferred session: the revival machinery starts the wallpaper once the
+  // window is actually visible again, so it must not read as a failure.
   const hidden = await verify({ dom: makeDomFixture({ visibilityState: "hidden", hidden: true }) });
-  assert.equal(hidden.result.pass, false);
+  assert.equal(hidden.result.pass, true);
+  assert.equal(hidden.result.readiness.visibilityDeferred, true);
   assert.equal(hidden.result.readiness.documentPass, false);
 
   const tiny = await verify({

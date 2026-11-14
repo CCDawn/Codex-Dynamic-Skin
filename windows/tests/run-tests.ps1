@@ -1170,12 +1170,13 @@ try {
   }
   $initialTheme = Read-DreamSkinTheme -ThemeDirectory $themePaths.Active
   if ($initialTheme.Theme.id -cne 'preset-arina-hashimoto' -or
-    $initialTheme.Theme.name -cne '桥本有菜' -or
-    $initialTheme.Theme.appearance -cne 'auto' -or
+    $initialTheme.Theme.name -cne '默认（无壁纸）' -or
+    $initialTheme.Theme.appearance -cne 'none' -or
+    $initialTheme.Theme.ui -cne 'wallpaper-only' -or
     $initialTheme.Theme.art.safeArea -cne 'left' -or
     $initialTheme.Theme.art.taskMode -cne 'ambient' -or
-    [System.IO.Path]::GetExtension($initialTheme.ImagePath) -cne '.jpg') {
-    throw 'Default Windows theme did not seed the Arina Hashimoto wallpaper contract.'
+    [System.IO.Path]::GetExtension($initialTheme.ImagePath) -cne '.png') {
+    throw 'Default Windows theme did not seed the blank wallpaper-only contract.'
   }
   $preseededThemes = @(Get-DreamSkinSavedThemes -StateRoot $themeStateRoot)
   $preseededIds = @($preseededThemes | ForEach-Object { $_.Id })
@@ -1254,8 +1255,8 @@ try {
   New-Item -ItemType Directory -Path $releaseFixtureAssets, $releaseFixtureScripts, $releaseFixturePresetDirectory -Force | Out-Null
   Copy-Item -LiteralPath (Join-Path $Root 'VERSION') -Destination $releaseFixtureRoot -Force
   foreach ($releaseAsset in @(
-    'compat-profile-client.mjs', 'dream-skin.css', 'renderer-inject.js', 'safe-css-policy.json', 'safe-css-validator.mjs',
-    'selectors.json', 'theme-package-validator.mjs'
+    'blank.png', 'compat-profile-client.mjs', 'dream-skin.css', 'renderer-inject.js', 'safe-css-policy.json',
+    'safe-css-validator.mjs', 'selectors.json', 'theme-package-validator.mjs'
   )) {
     Copy-Item -LiteralPath (Join-Path $Root "assets\$releaseAsset") `
       -Destination $releaseFixtureAssets -Force
@@ -1280,10 +1281,10 @@ try {
   Copy-Item -LiteralPath (Join-Path $publicPresetRoot 'theme.json') `
     -Destination $releaseFixturePresetDirectory -Force
   Copy-Item -LiteralPath (Join-Path $publicPresetRoot 'background.jpg') `
-    -Destination (Join-Path $releaseFixtureAssets 'blank.png') -Force
+    -Destination (Join-Path $releaseFixtureAssets 'default-preset.jpg') -Force
   $releaseFixtureTheme = (Read-DreamSkinUtf8File -Path (Join-Path $publicPresetRoot 'theme.json')) |
     ConvertFrom-Json
-  $releaseFixtureTheme.image = 'blank.png'
+  $releaseFixtureTheme.image = 'default-preset.jpg'
   Write-DreamSkinUtf8FileAtomically -Path (Join-Path $releaseFixtureAssets 'theme.json') `
     -Content (($releaseFixtureTheme | ConvertTo-Json -Depth 8) + "`r`n")
   $releaseThemePaths = Initialize-DreamSkinThemeStore -SkillRoot $releaseFixtureRoot `
@@ -1575,17 +1576,17 @@ try {
   $css = Read-DreamSkinUtf8File -Path (Join-Path $Root 'assets\dream-skin.css')
   foreach ($requiredCss in @(
     'background-image: var(--dream-skin-art)',
-    'main:is(.main-surface, [data-app-shell-main-surface], [class*="_MainContentSurface_"]) > header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*="_Header_"])',
+    'main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"]) > header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*="_Header_"])',
     '[class~="group/application-menu-top-bar"]',
     '.app-shell-main-content-top-fade',
     'data-app-shell-main-content-top-fade',
-    '_MainContentTopFade_',
+    'MainContentTopFade',
     '.thread-scroll-container .bg-gradient-to-t.from-token-main-surface-primary',
     '--ds-immersive-composer',
     'background-position: var(--ds-art-position)',
     'html[data-dream-skin="active"]',
-    'main:is(.main-surface, [data-app-shell-main-surface], [class*="_MainContentSurface_"]):has([role="main"])',
-    'main:is(.main-surface, [data-app-shell-main-surface], [class*="_MainContentSurface_"]):not(:has([role="main"]))'
+    'main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"]):has([role="main"])',
+    'main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"]):not(:has([role="main"]))'
   )) {
     if (-not $css.Contains($requiredCss)) { throw "Windows immersive CSS is missing: $requiredCss" }
   }

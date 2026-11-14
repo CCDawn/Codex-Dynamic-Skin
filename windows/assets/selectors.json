@@ -2,8 +2,18 @@
   "schema": "codex-dream-skin-selectors/1",
   "description": "双端统一选择器契约。scope 与 required 来自双端 DOM 快照实测；shell-main 与 header-tint 另由 2026-07-31 Codex 26.727.40816 真实 macOS renderer 复核。doctor / CI 应逐条 querySelector 并按 tier 判级：L1 缺失=皮肤主行为受损，L2 缺失=精修静默降级。",
   "verifiedAgainst": {
-    "date": "2026-09-26",
+    "date": "2026-11-13",
     "codexVersions": [
+      {
+        "version": "26.1106.6628",
+        "platform": "windows",
+        "evidence": "maintainer: 本机 Codex 26.1106.6628 renderer loopback CDP 只读 DOM 实测：CSS Module 类名全族去下划线（MainContentSurface-EnuIYE、ComposerLayoutRoot-xCKS7O、ComposerLayoutBody-uBBf1A、MainContentTopFade-T6W4RS），主内容白底画在 main 包装层上，composer 拆为 radius:0 方形 Root 与 radius:22px 圆角 Body 两层。选择器改无下划线子串匹配、composer-chrome 指向 Root 并令其完全透明、卡片透明度由 Body 消费 --ds-user-surface-alpha；实机注入后会话区渐变层 computed background 已验证为透明"
+      },
+      {
+        "version": "26.1103.7773",
+        "platform": "windows",
+        "evidence": "maintainer: 26.1103.4239 起两处断点本机复现并修复：renderer CSP connect-src/media-src 不放行 http://127.0.0.1 回环流，attach 时提前 Page.setBypassCSP 并对已加载文档 reload 一次；MSE init 段可过但分片段 append 被拒，改 renderer 直连流 URL 渐进播放。本机 loopback 验证视频壁纸应用与重连自愈正常"
+      },
       {
         "version": "26.924.22138",
         "platform": "macos",

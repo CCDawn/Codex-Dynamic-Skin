@@ -467,7 +467,6 @@ function Install-DreamSkinRuntimeEngine {
     'VERSION',
     'assets\blank.png',
     'assets\compat-profile-client.mjs',
-    'assets\default-preset.jpg',
     'assets\dream-skin.css',
     'assets\renderer-inject.js',
     'assets\safe-css-policy.json',

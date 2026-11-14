@@ -54,7 +54,8 @@ function Write-TestThemePack {
     [string]$Quote = 'IMPORT TEST'
   )
   New-Item -ItemType Directory -Path $Directory -Force | Out-Null
-  Copy-Item -LiteralPath (Join-Path $Root 'assets\blank.png') `
+  $projectRoot = Split-Path -Parent $Root
+  Copy-Item -LiteralPath (Join-Path $projectRoot 'docs\images\gallery\skin-01.jpg') `
     -Destination (Join-Path $Directory 'background.jpg') -Force
   $theme = [ordered]@{
     schemaVersion = 1
@@ -117,7 +118,8 @@ function Write-TestOfficialThemePack {
   )
   New-Item -ItemType Directory -Path $Directory -Force | Out-Null
   $imagePath = Join-Path $Directory 'background.jpg'
-  Copy-Item -LiteralPath (Join-Path $Root 'assets\blank.png') -Destination $imagePath -Force
+  $projectRoot = Split-Path -Parent $Root
+  Copy-Item -LiteralPath (Join-Path $projectRoot 'docs\images\gallery\skin-01.jpg') -Destination $imagePath -Force
   $theme = [ordered]@{
     schemaVersion = 1
     id = $Id

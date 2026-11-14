@@ -1313,9 +1313,14 @@ function Set-DreamSkinActiveSceneStreamTheme {
   if ($reference.MediaType -cne 'scene' -or $reference.MediaPath -ine $fullScenePath) {
     throw 'Scene stream source does not match its Wallpaper Engine project.'
   }
+  # Liveness is mandatory (Assert-DreamSkinSceneStreamAvailable throws on dead
+  # endpoints). The avcC read is measured-first: when the first sample exposes
+  # no parseable avcC box, fall back to the classic baseline declaration — the
+  # renderer's direct-connection path takes over if MSE rejects it, so a live
+  # stream must never be blocked from switching on an unreadable sample alone.
   $streamCodec = Assert-DreamSkinSceneStreamAvailable -StreamUrl $StreamUrl
   if (-not $streamCodec) {
-    throw '场景流不可用：无法从回环流前几 KB 解析 H.264 编码（avcC），请重新应用场景壁纸。'
+    $streamCodec = 'avc1.42c01f'
   }
   $paths = Get-DreamSkinThemePaths -StateRoot $StateRoot
   Ensure-DreamSkinManagedDirectory -Path $paths.Active -Root $paths.Root
