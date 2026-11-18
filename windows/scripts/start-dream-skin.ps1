@@ -761,6 +761,28 @@ try {
     throw $startupError
   }
 
+  # Package activation and the direct Store fallback can each leave a Codex
+  # window behind, and Electron's single-instance lock is scoped per
+  # --user-data-dir, so the managed CDP profile and the default profile can
+  # both stay open. Keep only the verified CDP tree; close the rest so the
+  # desktop never ends up with two Codex windows.
+  try {
+    $strayCodex = @(Get-DreamSkinCodexProcesses -Codex $codex | Where-Object {
+        ([string]$_.CommandLine) -notmatch "--remote-debugging-port=$Port\b"
+      })
+    foreach ($stray in $strayCodex) {
+      Stop-Process -Id ([int]$stray.ProcessId) -Force -ErrorAction SilentlyContinue
+    }
+    $strayInstances = @($strayCodex | Where-Object {
+        ([string]$_.CommandLine) -notmatch '--type='
+      })
+    if ($strayCodex.Count -gt 0) {
+      Start-Sleep -Milliseconds 800
+      Write-Host "已关闭 $($strayInstances.Count) 个重复的 Codex 实例（$($strayCodex.Count) 个进程），仅保留带皮肤的实例。"
+    }
+  } catch {
+    Write-Warning 'Duplicate Codex windows could not be closed automatically; close the extra window manually.'
+  }
   Write-Host "Codex 动态壁纸已激活，验证回环端口 $Port。"
   if ($ResultToken) {
     Write-DreamSkinStartResult -StateRoot $StateRoot -Token $ResultToken `
