@@ -1607,7 +1607,15 @@ html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] __DREAM_SELECTOR_
 
 html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] __DREAM_SELECTOR_SHELL_MAIN__ aside[class*="banner-"],
 html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] __DREAM_SELECTOR_SHELL_MAIN__ [class*="ComposerLayoutBody"] {
-  background-color: rgb(from var(--color-surface, #ffffff) r g b / var(--ds-user-surface-alpha, 0.92)) !important;
+  background-color: rgb(from var(--color-surface, #ffffff) r g b / var(--ds-user-surface-alpha, var(--ds-upload-panel-alpha, 0.92))) !important;
+}
+
+/* 26.1106 keeps the composer action strip on its own token. Wallpaper-only
+   left it fully opaque, so it read as a solid slab under a 0.70 panel. Route
+   it through the same alpha chain as the cards above so every conversation
+   surface resolves to one value. */
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] __DREAM_SELECTOR_SHELL_MAIN__ [class*="composer-action-bar"] {
+  background-color: rgb(from var(--color-background-composer-action-bar, var(--color-surface, #ffffff)) r g b / var(--ds-user-surface-alpha, var(--ds-upload-panel-alpha, 0.92))) !important;
 }
 
 
