@@ -190,6 +190,12 @@ bash macos/tests/run-tests.sh
 ## 常见问题
 
 <details>
+<summary><strong>2026 年 11 月 Codex 更新（26.1103 / 26.1106）后壁纸或主题失效了？</strong></summary>
+
+升级到 [v1.8.0](https://github.com/CCDawn/Codex-Dynamic-Skin/releases/latest) 或更新版本即可：安装包可直接覆盖安装，已保存的主题、图片与视频壁纸全部保留。升级后在托盘或管理器点一次「启动 / 重新应用」即可恢复，无需重装 Codex。
+</details>
+
+<details>
 <summary><strong>2026 年 9 月 Codex 更新后皮肤失效了？</strong></summary>
 
 v1.1.0 及更早版本依赖旧版 DOM 选择器，在 Codex 26.915 上会失效。升级到 v1.6.0 或更新版本（安装包可直接覆盖安装，已保存的主题和图片会保留）即可恢复。
@@ -204,7 +210,7 @@ v1.1.0 及更早版本依赖旧版 DOM 选择器，在 Codex 26.915 上会失效
 <details>
 <summary><strong>这是 Wallpaper Engine 的替代品吗？</strong></summary>
 
-不是。它只控制 Codex 应用内部的主题背景。Windows 管理器可以扫描并直接引用 Wallpaper Engine 已下载到本地的 `type: video` MP4/WebM 项目；超过 1080p 时会生成本地流畅代理。`type: scene` 的 `scene.pkg` 目前可通过独立 GPL-3.0 侧车进行开发预览；Web 壁纸和项目脚本仍不会执行。
+不是。它只控制 Codex 应用内部的主题背景。Windows 管理器可以扫描并直接引用 Wallpaper Engine 已下载到本地的 `type: video` MP4/WebM 项目；超过 1080p 时会生成本地流畅代理。`type: scene` 的 `scene.pkg` 自 v1.8.0 起由管理器一键拉起本机渲染与回环流播放（GPL-3.0 渲染器 SceneViewer 为独立组件，首次使用时放入 `scene-runtime` 目录即可，详见[平台对照](./docs/platforms.md)）；Web 壁纸和项目脚本仍不会执行。
 </details>
 
 <details>

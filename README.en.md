@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/social-preview.png" alt="Codex Dynamic Wallpaper" width="100%">
+  <img src="docs/images/wallpaper-demo.gif" alt="Codex Dynamic Wallpaper live demo (sunny beach live wallpaper)" width="100%">
 </p>
 
 <p align="center">
@@ -53,10 +53,12 @@
 ## Why use it
 
 - **The native UI stays interactive** — This is not a fake screenshot over the window. Sidebar, chat, tasks, and composer continue to work.
-- **Live wallpapers inside Codex** — Windows supports muted, looping local MP4/WebM backgrounds. It does not change your desktop wallpaper.
+- **Wallpaper-only mode (default)** — Only surfaces are made transparent to show the wallpaper through; colors, fonts, and layout stay 100% official Codex. Switch back to full mode whenever you want the complete themed skin. When no wallpaper is selected, no sample artwork is drawn and the UI keeps its official look.
+- **Live wallpapers inside Codex** — Windows supports muted, looping local MP4/WebM backgrounds and Wallpaper Engine scene streams. It does not change your desktop wallpaper.
 - **Community themes** — Import theme ZIPs (manifest + local Safe CSS validation); the tray includes Gallery and Online Studio entries. Theme CSS only affects registered parts and can never execute commands.
-- **Tracks Codex updates** — v1.6.0 ships the selector-contract engine (`selectors.json` with triple fallbacks) and supports the September 2026 Codex release (26.915).
-- **One Windows manager** — Browse, search, preview, and switch wallpapers; control reveal; pause the skin; or restore the stock appearance.
+- **Tracks Codex updates** — v1.6.0 ships the selector-contract engine (`selectors.json` with triple fallbacks) and is adapted to the November 2026 Codex releases (26.1103 / 26.1106): the CSP loopback allowance, direct video streaming, and no-underline CSS Module class-name breakpoints are all cleared.
+- **One Windows manager** — Browse, search, preview, and switch wallpapers; adjust wallpaper reveal and panel transparency; pause the skin or restore the stock appearance. The UI scales with your DPI.
+- **Panel transparency** — Frosted-glass transparency for the session-area cards is independently adjustable, so you control how much wallpaper shows through the UI.
 - **Turn images into themes** — Import PNG, JPEG, or WebP artwork and keep full-window composition readable.
 - **Reversible and auditable** — No official binary patching. Stop injection and return to the stock Codex appearance at any time.
 - **Windows and macOS** — Windows ships a localized Setup installer plus a self-contained EXE; macOS ships a menu-bar Studio and installation scripts.
@@ -81,12 +83,12 @@ The manager is a self-contained single-file app with the tested wallpaper engine
 
 > Releases are currently unsigned, so Windows may show an unknown-publisher prompt. Download only from this repository's [Releases](https://github.com/CCDawn/Codex-Dynamic-Skin/releases) page and verify the companion `.sha256` file.
 
-### Wallpaper reveal
+### Wallpaper reveal and panel transparency
 
-The right-side slider controls the relationship between the theme veil and the wallpaper:
+The manager provides two independent sliders on the right:
 
-- `100%` shows the original image/video with the page-wide veil reduced to zero.
-- Lower values increase text-area and theme treatment visibility for busy backgrounds or task pages.
+- **Wallpaper reveal** controls the relationship between the theme veil and the wallpaper. `100%` shows the original image/video with the page-wide veil reduced to zero; lower values increase text-area and theme veil visibility, which suits task pages or high-contrast backgrounds.
+- **Panel transparency** controls the frosted-glass transparency of UI surfaces, applied to the session-area cards (composer, prompt banners, and so on) and panels — lower values are more transparent and let more wallpaper through. The two sliders are independent and can be combined.
 
 ## macOS installation
 
@@ -111,12 +113,15 @@ Use the menu-bar Studio to import, save, and switch image themes. See [`macos/RE
 |---|:---:|:---:|
 | PNG / JPEG / WebP image themes | ✅ | ✅ |
 | MP4 / WebM live wallpapers | ✅ | — |
+| Wallpaper Engine scene streams | ✅ | — |
 | Community theme ZIPs (Safe CSS) | ✅ | ✅ |
 | Bilingual tray / UI (EN / 中文) | ✅ | ✅ |
 | Graphical theme manager | ✅ Setup + standalone EXE | ✅ Menu-bar Studio |
 | Wallpaper search and preview | ✅ | ✅ |
 | Save and switch themes | ✅ | ✅ |
-| Wallpaper reveal control | ✅ | — |
+| Wallpaper-only mode (100% official UI) | ✅ default | ✅ default |
+| Wallpaper reveal slider | ✅ | — |
+| Panel transparency (frosted-glass cards) | ✅ | — |
 | Pause injection / restore stock appearance | ✅ | ✅ |
 | Modifies official app files | **Never** | **Never** |
 
@@ -186,6 +191,12 @@ bash macos/tests/run-tests.sh
 ## FAQ
 
 <details>
+<summary><strong>The skin broke after the November 2026 Codex update (26.1103 / 26.1106).</strong></summary>
+
+Upgrade to v1.8.0 or newer. The Setup installer upgrades in place and keeps all saved themes. After upgrading, click **启动 / 重新应用** in the tray or manager to restore the skin — no need to reinstall Codex.
+</details>
+
+<details>
 <summary><strong>The skin broke after the September 2026 Codex update.</strong></summary>
 
 v1.1.0 and earlier relied on legacy DOM selectors and fail on Codex 26.915. Upgrade to v1.6.0 or newer (the Setup installer upgrades in place; saved themes and images are kept) to restore the skin.
@@ -200,7 +211,7 @@ They are feature-equivalent and share local data. The Setup installer adds Start
 <details>
 <summary><strong>Is this a Wallpaper Engine replacement?</strong></summary>
 
-No. It controls only the theme background inside Codex. The Windows manager can import ordinary MP4/WebM files, but it does not render Wallpaper Engine Scene, Web, or packaged projects.
+No. It controls only the theme background inside Codex. The Windows manager can scan and directly reference Wallpaper Engine `type: video` MP4/WebM projects already downloaded locally, and generates a smooth local proxy above 1080p. As of v1.8.0, `type: scene` `scene.pkg` streams are launched and served by the manager with one click (the GPL-3.0 SceneViewer renderer stays a separate component: drop it into the `scene-runtime` directory once — see the [platform guide](./docs/platforms.md)). Web wallpapers and project scripts are never executed.
 </details>
 
 <details>

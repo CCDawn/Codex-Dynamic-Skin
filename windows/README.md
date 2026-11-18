@@ -25,7 +25,7 @@ Codex 动态壁纸通过本机回环 CDP 给官方 Codex Windows 桌面应用加
 管理器支持：
 
 - 浏览、搜索并预览桌面壁纸库中的 PNG、JPEG、WebP、MP4 和 WebM。
-- 扫描 Wallpaper Engine 本地 Workshop 中的视频和 `scene.pkg` 场景；Scene 通过独立 GPL-3.0 本地渲染侧车输出回环 fMP4 流，Web 壁纸暂不支持。
+- 扫描 Wallpaper Engine 本地 Workshop 中的视频和 `scene.pkg` 场景；Scene 由管理器一键拉起独立 GPL-3.0 渲染器（`SceneViewer.exe`，独立组件需放入 `scene-runtime` 目录）无头渲染并伺服回环流，Web 壁纸暂不支持。
 - 一键启动或重新应用动态壁纸、切换壁纸、暂停/恢复以及还原官方外观。
 - 调整「壁纸透出」程度，100% 时视频保持原始画面且整页主题蒙层为零。
 - 系统托盘控制和可选的当前用户开机启动。
@@ -146,7 +146,7 @@ Codex，并验证磁盘上的当前主题与可见主题一致；只有建立了
 
 动态壁纸始终静音、循环且不拦截鼠标操作；Codex 页面隐藏时会暂停普通视频，并中止 Scene 在 Chromium 中的流读取，重新显示后再连接。视频上限为 128 MB，并通过有界 CDP 分块传入当前 renderer，不会上传到网络，也不会把整段视频嵌入启动脚本。Wallpaper Engine 的超 1080p 视频在首次应用时会生成本地 1080p 流畅代理，缓存位于 `%LOCALAPPDATA%\CodexDreamSkin\media-cache`；原 Workshop 文件不会被修改，仍会在每次刷新时校验。当前 MVP 不提供声音、播放列表或 Live2D。
 
-Scene 支持目前是开发预览：`SceneViewer.exe` 必须作为独立组件放在 `%LOCALAPPDATA%\CodexDreamSkin\scene-runtime`，并随附 GPL-3.0 许可证与对应源码信息。主程序只通过标准输入和带随机令牌的 `127.0.0.1` HTTP 接口与其通信；不会把 GPL 二进制嵌入 MIT 管理器。发布前仍需完成独立侧车包、源码提供说明和更多场景兼容性验证。
+Scene 支持自 v1.8.0 起由管理器一键拉起与伺服，但渲染器仍是独立组件：`SceneViewer.exe` 必须放在 `%LOCALAPPDATA%\CodexDreamSkin\scene-runtime`，并随附 GPL-3.0 许可证与对应源码信息（MIT 仓库不分发 GPL 二进制）。主程序只通过标准输入和带随机令牌的 `127.0.0.1` HTTP 接口与其通信；不会把 GPL 二进制嵌入 MIT 管理器。场景兼容性验证仍在持续进行。
 
 ## 恢复与卸载快捷方式
 
