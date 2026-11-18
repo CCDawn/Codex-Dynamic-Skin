@@ -1122,7 +1122,19 @@ function Start-DreamSkinCodexForDebugging {
   # launch. That flashed two Codex windows before the skin settled. Launch the
   # validated Store executable directly and keep package activation out of the
   # success path.
-  $directProcessId = Start-DreamSkinCodexDirect -Codex $Codex -Arguments $Arguments
+  try {
+    $directProcessId = Start-DreamSkinCodexDirect -Codex $Codex -Arguments $Arguments
+  } catch {
+    $failureKind = Get-DreamSkinDirectLaunchFailureKind -Exception $_.Exception
+    $category = if ($failureKind -ceq 'access-denied') {
+      'cdp-direct-access-denied'
+    } else {
+      'cdp-launch-failed'
+    }
+    throw (New-DreamSkinStartException -Category $category `
+      -Message "Direct launch of the validated Store executable failed ($failureKind), so Codex $($Codex.Version) cannot expose the Dream Skin debugging endpoint without modifying the protected app package." `
+      -InnerException $_.Exception)
+  }
   $directStatus = Wait-DreamSkinCodexDebugArgumentStatus -Codex $Codex -Port $Port
   if ($directStatus -in @('protocol-redirected', 'not-forwarded')) {
     try {
