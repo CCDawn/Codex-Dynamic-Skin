@@ -522,7 +522,11 @@ export async function runRendererRuntimeTest(assetRoot) {
     // square ComposerLayoutRoot wrapper must clear instead, or translucent
     // white spikes poke out behind the rounded card (26.1106).
     new RegExp(`html\\[data-dream-skin="active"\\]\\[data-dream-ui="wallpaper-only"\\] ${shellMain} ${composerChrome} \\{\\s*background: transparent !important;\\s*\\}`),
-    new RegExp(`html\\[data-dream-skin="active"\\]\\[data-dream-ui="wallpaper-only"\\] ${shellMain} aside\\[class\\*="banner-"\\],\\s*html\\[data-dream-skin="active"\\]\\[data-dream-ui="wallpaper-only"\\] ${shellMain} \\[class\\*="ComposerLayoutBody"\\] \\{\\s*background-color: rgb\\(from var\\(--color-surface, #ffffff\\) r g b / var\\(--ds-user-surface-alpha, 0\\.92\\)\\) !important;\\s*\\}`),
+    new RegExp(`html\\[data-dream-skin="active"\\]\\[data-dream-ui="wallpaper-only"\\] ${shellMain} aside\\[class\\*="banner-"\\] \\{\\s*background-color: rgb\\(from var\\(--color-surface, #ffffff\\) r g b / var\\(--ds-user-surface-alpha, var\\(--ds-upload-panel-alpha, 0\\.92\\)\\)\\) !important;\\s*\\}`),
+    // The composer card is a content layer, not a panel layer: it keeps a fixed
+    // tint plus a hairline edge so the input field stays visible against the
+    // wallpaper at any slider alpha.
+    new RegExp(`html\\[data-dream-skin="active"\\]\\[data-dream-ui="wallpaper-only"\\]\\s+\\[class\\*="ComposerLayoutBody"\\]\\[class\\*="ComposerLayoutBody"\\]\\[class\\*="ComposerLayoutBody"\\]\\[class\\*="ComposerLayoutBody"\\]\\s*\\{\\s*background-color: rgb\\(26 28 31 / 0\\.08\\) !important;`),
   ]) {
     assert.match(css, keptRule, "Surface-transparency rules must stay active in wallpaper-only mode.");
   }

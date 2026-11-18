@@ -1005,11 +1005,15 @@ try {
     $originalLauncherFunctions[$functionName] = (Get-Command $functionName -CommandType Function).ScriptBlock
   }
   try {
-    Set-Item 'function:Start-DreamSkinCodex' -Value { param($Codex, $Arguments) return 101 }
+    Set-Item 'function:Start-DreamSkinCodex' -Value {
+      throw 'Package activation must not run on the validated direct start path.'
+    }
+    Set-Item 'function:Start-DreamSkinCodexDirect' -Value { param($Codex, $Arguments) return 101 }
     Set-Item 'function:Wait-DreamSkinCodexDebugArgumentStatus' -Value { param($Codex, $Port) return 'forwarded' }
-    Set-Item 'function:Start-DreamSkinCodexDirect' -Value { throw 'Direct fallback must not run for compatible package activation.' }
+    $script:dreamSkinStopCalls = @()
     Set-Item 'function:Stop-DreamSkinCodex' -Value {
       param($Codex, [int[]]$PreserveProcessIds, [switch]$AllowForce)
+      $script:dreamSkinStopCalls += ,@($PreserveProcessIds)
     }
     Set-Item 'function:Get-DreamSkinCodexProcesses' -Value {
       return @(
@@ -1022,62 +1026,57 @@ try {
     if ($newProcesses.Count -ne 1 -or $newProcesses[0].ProcessId -ne 20) {
       throw 'Launch rollback did not preserve the exact pre-launch Codex PID set.'
     }
-    $compatibleLaunch = Start-DreamSkinCodexForDebugging -Codex $fakeInstall `
-      -Arguments @('--remote-debugging-port=9335') -Port 9335 -PreserveProcessIds @()
-    if ($compatibleLaunch.ProcessId -ne 101 -or $compatibleLaunch.Strategy -cne 'package-activation') {
-      throw 'Compatible package activation did not remain the preferred launch strategy.'
+    $directLaunch = Start-DreamSkinCodexForDebugging -Codex $fakeInstall `
+      -Arguments @('--remote-debugging-port=9335') -Port 9335 -PreserveProcessIds @(10, 30)
+    if ($directLaunch.ProcessId -ne 101 -or $directLaunch.Strategy -cne 'direct-store-executable' -or
+      $directLaunch.ArgumentStatus -cne 'forwarded' -or $directLaunch.PackageArgumentStatus -cne 'skipped') {
+      throw 'The validated direct Store executable did not remain the primary launch strategy.'
     }
     Set-Item 'function:Wait-DreamSkinCodexDebugArgumentStatus' -Value { param($Codex, $Port) return 'uninspectable' }
     $uninspectableLaunch = Start-DreamSkinCodexForDebugging -Codex $fakeInstall `
-      -Arguments @('--remote-debugging-port=9335') -Port 9335 -PreserveProcessIds @()
-    if ($uninspectableLaunch.Strategy -cne 'package-activation' -or
-      $uninspectableLaunch.ArgumentStatus -cne 'uninspectable') {
-      throw 'An uninspectable package process was not kept on the conservative package-activation path.'
+      -Arguments @('--remote-debugging-port=9335') -Port 9335 -PreserveProcessIds @(10, 30)
+    if ($uninspectableLaunch.Strategy -cne 'direct-store-executable' -or
+      $uninspectableLaunch.ArgumentStatus -cne 'uninspectable' -or
+      $uninspectableLaunch.PackageArgumentStatus -cne 'skipped') {
+      throw 'An uninspectable direct launch was not kept on the conservative success path.'
     }
+
     Set-Item 'function:Wait-DreamSkinCodexDebugArgumentStatus' -Value { param($Codex, $Port) return 'not-forwarded' }
-    $notForwardedLaunch = Start-DreamSkinCodexForDebugging -Codex $fakeInstall `
-      -Arguments @('--remote-debugging-port=9335') -Port 9335 -PreserveProcessIds @()
-    if ($notForwardedLaunch.Strategy -cne 'package-activation' -or
-      $notForwardedLaunch.ArgumentStatus -cne 'not-forwarded') {
-      throw 'A command-line observation without explicit protocol redirection triggered an unsafe fallback.'
-    }
-
-    $script:dreamSkinDebugStatusCall = 0
-    Set-Item 'function:Wait-DreamSkinCodexDebugArgumentStatus' -Value {
-      param($Codex, $Port)
-      $script:dreamSkinDebugStatusCall += 1
-      if ($script:dreamSkinDebugStatusCall -eq 1) { return 'protocol-redirected' }
-      return 'forwarded'
-    }
-    Set-Item 'function:Start-DreamSkinCodexDirect' -Value { param($Codex, $Arguments) return 202 }
-    $fallbackLaunch = Start-DreamSkinCodexForDebugging -Codex $fakeInstall `
-      -Arguments @('--remote-debugging-port=9335') -Port 9335 -PreserveProcessIds @()
-    if ($fallbackLaunch.ProcessId -ne 202 -or $fallbackLaunch.Strategy -cne 'direct-store-executable' -or
-      $fallbackLaunch.PackageArgumentStatus -cne 'protocol-redirected') {
-      throw 'owl protocol redirection did not use the validated direct Store executable fallback.'
-    }
-
-    $script:dreamSkinDebugStatusCall = 0
-    Set-Item 'function:Wait-DreamSkinCodexDebugArgumentStatus' -Value {
-      param($Codex, $Port)
-      $script:dreamSkinDebugStatusCall += 1
-      if ($script:dreamSkinDebugStatusCall -eq 1) { return 'protocol-redirected' }
-      return 'not-forwarded'
-    }
-    $directArgumentFailureReported = $false
-    $directArgumentFailureCategory = $null
+    $notForwardedReported = $false
+    $notForwardedCategory = $null
     try {
       $null = Start-DreamSkinCodexForDebugging -Codex $fakeInstall `
-        -Arguments @('--remote-debugging-port=9335') -Port 9335 -PreserveProcessIds @()
+        -Arguments @('--remote-debugging-port=9335') -Port 9335 -PreserveProcessIds @(10, 30)
     } catch {
-      $directArgumentFailureReported = $_.Exception.Message.Contains(
-        'package activation or validated direct launch')
-      $directArgumentFailureCategory = Get-DreamSkinStartFailureCategory `
-        -Exception $_.Exception
+      $notForwardedReported = $_.Exception.Message.Contains(
+        'did not retain the CDP argument during validated direct launch')
+      $notForwardedCategory = Get-DreamSkinStartFailureCategory -Exception $_.Exception
     }
-    if (-not $directArgumentFailureReported -or
-      $directArgumentFailureCategory -cne 'cdp-endpoint-unavailable') {
-      throw 'A direct fallback that also dropped the CDP argument did not preserve its result category.'
+    if (-not $notForwardedReported -or $notForwardedCategory -cne 'cdp-endpoint-unavailable') {
+      throw 'A direct launch that dropped the CDP argument did not fail closed with its result category.'
+    }
+
+    Set-Item 'function:Wait-DreamSkinCodexDebugArgumentStatus' -Value { param($Codex, $Port) return 'protocol-redirected' }
+    $redirectedReported = $false
+    $redirectedCategory = $null
+    try {
+      $null = Start-DreamSkinCodexForDebugging -Codex $fakeInstall `
+        -Arguments @('--remote-debugging-port=9335') -Port 9335 -PreserveProcessIds @(10, 30)
+    } catch {
+      $redirectedReported = $_.Exception.Message.Contains(
+        'did not retain the CDP argument during validated direct launch')
+      $redirectedCategory = Get-DreamSkinStartFailureCategory -Exception $_.Exception
+    }
+    if (-not $redirectedReported -or $redirectedCategory -cne 'cdp-endpoint-unavailable') {
+      throw 'owl protocol redirection was not treated as a validated direct-launch failure signal.'
+    }
+    if ($script:dreamSkinStopCalls.Count -ne 2) {
+      throw 'Argument-retention failures did not close exactly their own launched Codex process.'
+    }
+    foreach ($stopCall in $script:dreamSkinStopCalls) {
+      if (@($stopCall).Count -ne 2 -or @($stopCall) -notcontains 10 -or @($stopCall) -notcontains 30) {
+        throw 'Argument-retention rollback did not preserve the exact pre-launch Codex PID set.'
+      }
     }
 
     Set-Item 'function:Wait-DreamSkinCodexDebugArgumentStatus' -Value { param($Codex, $Port) return 'protocol-redirected' }

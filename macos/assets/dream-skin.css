@@ -1606,7 +1606,7 @@ html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] main:is(.main-sur
 }
 
 html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"]) aside[class*="banner-"] {
-  background-color: transparent !important;
+  background-color: rgb(from var(--color-surface, #ffffff) r g b / var(--ds-user-surface-alpha, var(--ds-upload-panel-alpha, 0.92))) !important;
 }
 
 /* 26.1106 keeps the composer action strip on its own token. Wallpaper-only
