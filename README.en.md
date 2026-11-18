@@ -94,6 +94,10 @@ The manager provides two independent sliders on the right:
   <img src="docs/images/screenshot-manager.png" alt="Windows manager: wallpaper library (with Wallpaper Engine scenes), preview, and the two sliders for wallpaper reveal and panel transparency" width="100%">
 </p>
 
+<p align="center">
+  <img src="docs/images/slider-demo.gif" alt="Live adjustment demo: wallpaper reveal swept from 100% down to 15% and back, panel transparency from 95% to 10%, with the Codex UI following in real time" width="100%">
+</p>
+
 ## macOS installation
 
 Open [`macos/`](./macos/) and double-click:

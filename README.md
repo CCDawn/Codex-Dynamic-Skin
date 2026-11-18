@@ -93,6 +93,10 @@
   <img src="docs/images/screenshot-manager.png" alt="Windows 管理器：壁纸库（含 Wallpaper Engine 场景）、预览与壁纸浓度、面板透明度双滑杆" width="100%">
 </p>
 
+<p align="center">
+  <img src="docs/images/slider-demo.gif" alt="实时调节演示：壁纸浓度从 100% 拖到 15% 再回调，面板透明度从 95% 拖到 10%，Codex 界面即时跟随变化" width="100%">
+</p>
+
 ## macOS 安装
 
 在仓库的 [`macos/`](./macos/) 目录双击：
