@@ -1605,8 +1605,7 @@ html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] __DREAM_SELECTOR_
   background: transparent !important;
 }
 
-html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] __DREAM_SELECTOR_SHELL_MAIN__ aside[class*="banner-"],
-html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] __DREAM_SELECTOR_SHELL_MAIN__ [class*="ComposerLayoutBody"] {
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] __DREAM_SELECTOR_SHELL_MAIN__ aside[class*="banner-"] {
   background-color: rgb(from var(--color-surface, #ffffff) r g b / var(--ds-user-surface-alpha, var(--ds-upload-panel-alpha, 0.92))) !important;
 }
 
@@ -1615,7 +1614,94 @@ html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] __DREAM_SELECTOR_
    it through the same alpha chain as the cards above so every conversation
    surface resolves to one value. */
 html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] __DREAM_SELECTOR_SHELL_MAIN__ [class*="composer-action-bar"] {
-  background-color: rgb(from var(--color-background-composer-action-bar, var(--color-surface, #ffffff)) r g b / var(--ds-user-surface-alpha, var(--ds-upload-panel-alpha, 0.92))) !important;
+  background-color: transparent !important;
+}
+
+/* 26.1111 paints the icon rail and the inner page container with their own
+   bg-surface on top of the shell surface. Three 0.70 layers compose to ~0.97,
+   so the rail reads as a solid white strip over the wallpaper while the rest of
+   the window stays translucent. The rail is a sibling of the shell main rather
+   than a descendant, so it carries no shell-main prefix. Clear the nested painters
+   only: the outer shell already paints the resolved alpha, and interactive
+   children keep their own paint because this never targets descendants. */
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] nav[class*="sidebar-rail"],
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] [class~="bg-surface"][class~="absolute"][class~="inset-0"][class~="z-10"] {
+  background: transparent !important;
+}
+
+/* 26.1106 paints the composer as a frosted card: ComposerLayoutRoot carries
+   backdrop-filter: blur(12px) plus a 80px-spread soft shadow, and its body
+   repeats the surface fill on top of the shell. Stacked on the shell alpha
+   that composites to roughly double the requested value and the wide shadow
+   reads as a gradient band under the footer. Wallpaper-only keeps a single
+   alpha layer, so the root stops blurring and stops casting, and the body
+   lets the shell fill show through. */
+/* Measured on 26.1111: ComposerLayoutRoot/Body are NOT descendants of the shell
+   main, so any SHELL_MAIN-scoped rule here is dead code. The composer also sits
+   behind a surface rule whose origin is not reachable through document.styleSheets
+   (adopted sheets are opaque to cssRules here), so the selector repeats its own
+   attribute to out-rank it instead of guessing the source rule. Verified live:
+   body alpha drops 0.2 -> 0 and the 80px footer glow disappears. */
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"]
+  [class*="ComposerLayoutRoot"][class*="ComposerLayoutRoot"][class*="ComposerLayoutRoot"] {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"]
+[class*="ComposerLayoutBody"][class*="ComposerLayoutBody"][class*="ComposerLayoutBody"][class*="ComposerLayoutBody"] {
+  background-color: rgb(26 28 31 / 0.08) !important;
+  box-shadow: 0 0 0 1px rgb(26 28 31 / 0.14) !important;
+  border-radius: 16px !important;
+}
+
+/* 26.1111 footer-A8ZvKV paints the transcript fade with two pseudo layers:
+   ::before is linear-gradient(transparent -> #fff calc(100% - 22px)) and
+   ::after is a solid #fff fill, both spanning 1186x114 across the footer.
+   That is the gradient band and the white strip under the composer, and it
+   also bleeds into the sidebar column. Wallpaper-only needs no scrim, so both
+   pseudo layers stop painting. */
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] [class*="footer-"]::before,
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] [class*="footer-"]::after {
+  background: none !important;
+  background-image: none !important;
+}
+
+/* Measured on 26.1111 with --ds-user-surface-alpha forced 0.2 -> 0: the shell
+   main shifts by ~25 levels while the sidebar and the icon rail do not move at
+   all. The sidebar therefore carries no panel layer of its own, so an earlier
+   revision painted the same alpha chain onto it. That double-painted: the shell
+   main surface already spans the full window at this alpha, so the sidebar's copy
+   composited over it (0.70 over 0.70 = 0.91) and the column read brighter than
+   the rest. Leave the painter clear and let the single shell alpha show through. */
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] nav[class*="Navigation-"] {
+  background: transparent !important;
+}
+
+/* The collapsed rail keeps its own native surface too. Same reasoning as the
+   navigation container above: clear the painter and let the single shell alpha
+   show through, otherwise the rail column composites 0.70 over 0.70. */
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] aside[class*="LeftPanel-"] nav[class*="sidebar-rail"] {
+  background: transparent !important;
+}
+
+
+/* 26.1106 summary panels (the change summary and sub-agent cards that float
+   above the thread) still paint bg-surface-elevated-secondary, a token
+   wallpaper-only never remapped, so they stayed pure white. Cover the whole
+   surface token family plus the sticky-header pseudo fill so the panel body
+   and its header strip resolve to the same slider alpha. */
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] [class~="bg-surface"],
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] [class~="bg-surface-secondary"],
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] [class~="bg-surface-tertiary"],
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] [class~="bg-surface-elevated"],
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] [class~="bg-surface-elevated-secondary"] {
+  background-color: transparent !important;
+}
+
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] [class~="bg-surface-elevated-secondary"]::before {
+  background-color: transparent !important;
 }
 
 
@@ -1870,5 +1956,112 @@ html[data-dream-skin="active"][data-dream-ui="full"] [role="dialog"] [data-testi
   border: 1px solid rgb(var(--ds-text-rgb) / .36);
 }
 html[data-dream-skin="active"][data-dream-ui="full"] [role="dialog"]:has([data-testid="image-preview-dismiss-area"] table) [data-testid="image-preview-dismiss-area"] [class~="bg-inherit"] {
+  background: transparent !important;
+}
+
+/* Conversation cards (thread tool cards, task summaries, sticky headers) keep
+   their own official surface paint. In wallpaper-only mode those fills stay
+   fully opaque, so a 0.70 shell reads as a solid white slab next to the
+   translucent panes and the panel-transparency slider looks dead on them.
+   Route every card-level surface token through the same alpha chain the shell
+   already uses. The shell owns the single backdrop layer; cards only inherit
+   its value, and interactive controls keep their own paint. */
+/* The panel layer already lives on one full-window element (#root). Any nested
+   surface that repeats the same alpha stacks on top of it: 0.73 over 0.73 reads
+   as 0.93, which is why conversation cards looked more solid than the panes
+   around them. Clear the nested painters instead of re-applying the alpha, so
+   every row of the thread shows the same single layer. */
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"]
+  __DREAM_SELECTOR_SHELL_MAIN__ [class*="bg-surface"]:not(button):not(a):not(input):not(textarea):not(select),
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"]
+  __DREAM_SELECTOR_SHELL_MAIN__ [class*="bg-token-surface"]:not(button):not(a):not(input):not(textarea):not(select) {
+  background-color: transparent !important;
+}
+
+/* Wallpaper-only needs exactly one frosted layer, and that layer is the outer
+   shell main. 26.1111 routes its paint through
+   [data-app-shell-focus-area] > .bg-surface, which clears it unconditionally;
+   once every other pane clears too, the window goes fully transparent and the
+   panel-transparency slider has nothing left to drive. Restore the alpha chain
+   on that single surface so the slider owns the whole window again. */
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] main.bg-surface {
+  background-color: rgb(from var(--color-surface, #ffffff) r g b /
+    var(--ds-user-surface-alpha, var(--ds-upload-panel-alpha, 0.92))) !important;
+}
+
+/* 26.1111 drops the outer shell `main.bg-surface` entirely: the live window is
+   #root > aside.app-shell-left-panel + main.MainContentSurface-*, and both paint
+   transparent. With every pane cleared the window has no frosted layer left, so
+   the panel-transparency slider drives nothing the user can see. Paint the two
+   top-level panes with the alpha chain; everything nested inside them stays
+   clear and composes over that single layer. */
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] aside.app-shell-left-panel,
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] main[class*="MainContentSurface"] {
+  background-color: transparent !important;
+}
+
+/* Collapse the panel paint onto a single layer. 26.1111 can expose up to three
+   nested surfaces at once (shell main, aside.app-shell-left-panel,
+   main.MainContentSurface-*). Painting each of them at the slider value stacks
+   to ~0.98 and the slider reads as dead again. Paint #root once and keep every
+   pane under it clear: the wallpaper lives on body behind #root, so one alpha
+   layer is all the mode needs. */
+/* Conversation cards normally read as cards because their surface token paints
+   a tint. With that paint cleared they fall back to a 0.5px ring, which is
+   invisible over a wallpaper, so the thread lost every boundary. Draw an
+   explicit hairline so the card outline survives the transparency contract
+   without re-adding a fill that would stack over the #root layer. */
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"]
+  __DREAM_SELECTOR_SHELL_MAIN__ [class*="extension:border"] {
+  border: 1px solid rgb(from var(--color-border-default, #1a1c1f) r g b / 0.22) !important;
+}
+
+/* Transient overlays are the one layer that must stay readable: a menu, dialog
+   or tooltip floats over the wallpaper with no pane behind it, so it keeps a
+   near-solid surface instead of inheriting the panel alpha. Page containers
+   stay clear (one #root layer), overlays stay legible. */
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"]
+  :is([role="dialog"], [role="menu"], [role="listbox"], [data-ds-part="dialog"]) {
+  background-color: rgb(from var(--color-surface, #ffffff) r g b / 0.98) !important;
+}
+
+/* Conversation-level tints paint a second layer on top of the single #root
+   panel: user bubbles, turn-diff headers and resource cards each carry their
+   own 0.05 tint, so one card reads part grey and part white. Clear them so
+   every conversation surface resolves to the #root alpha alone. */
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] [class*="turn-diff"],
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] [class*="resource-card"] {
+  background-color: rgb(26 28 31 / 0.06) !important;
+  box-shadow: 0 0 0 1px rgb(26 28 31 / 0.12) !important;
+}
+
+/* ds-wallpaper-only-catch-all
+   Tailwind emits alpha modifiers as separate tokens (bg-surface-secondary/50),
+   which `class~="bg-surface-secondary"` can never match, and conversation
+   cards additionally paint their own bg-user-message / turn-diff tint. Both
+   land a second layer on top of the single #root panel, so one card reads
+   part grey and part white. Clear every surface variant and conversation
+   tint at once; interactive controls and popovers keep their own paint. */
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] [class*="bg-surface"]:not([role="dialog"]):not([role="menu"]):not([role="listbox"]):not(button):not(a):not(input):not(textarea):not(select) {
+  background-color: transparent !important;
+}
+
+/* Keep the user turn distinguishable. Clearing every surface erased the only
+   cue that separated a user message from an assistant reply, so the transcript
+   collapsed into one uniform block. The tint is a content layer, not a panel
+   layer: keep it at a fixed value that survives any slider alpha, and give it
+   a hairline edge so it still reads when the wallpaper is bright. */
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] [class*="bg-user-message"] {
+  background-color: rgb(26 28 31 / 0.10) !important;
+  box-shadow: 0 0 0 1px rgb(26 28 31 / 0.14) !important;
+}
+
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] #root {
+  background-color: rgb(from var(--color-surface, #ffffff) r g b /
+    var(--ds-user-surface-alpha, var(--ds-upload-panel-alpha, 0.92))) !important;
+}
+
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] #root main,
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] #root aside.app-shell-left-panel {
   background: transparent !important;
 }
