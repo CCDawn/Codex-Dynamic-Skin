@@ -350,9 +350,9 @@ try {
       $debugLaunch = Start-DreamSkinCodexForDebugging -Codex $codex -Arguments $arguments `
         -Port $Port -PreserveProcessIds $debugLaunchBaselineProcessIds
       $launchedWithCdp = $true
-      if ($debugLaunch.Strategy -eq 'direct-store-executable') {
-        Write-Warning 'Codex package activation did not preserve the CDP arguments; using the validated Store executable fallback for this session.'
-      }
+    if ($debugLaunch.Strategy -eq 'direct-store-executable') {
+      Write-Verbose 'Codex launched directly from the validated Store executable with the CDP endpoint.'
+    }
     }
 
     $startFailureCategory = 'cdp-endpoint-unavailable'

@@ -1115,39 +1115,14 @@ function Start-DreamSkinCodexForDebugging {
   } else {
     @(Get-DreamSkinCodexProcesses -Codex $Codex | ForEach-Object { [int]$_.ProcessId })
   }
-  $packageProcessId = Start-DreamSkinCodex -Codex $Codex -Arguments $Arguments
-  $packageStatus = Wait-DreamSkinCodexDebugArgumentStatus -Codex $Codex -Port $Port
-  if ($packageStatus -ne 'protocol-redirected') {
-    return [pscustomobject]@{
-      ProcessId = $packageProcessId
-      Strategy = 'package-activation'
-      ArgumentStatus = $packageStatus
-      PackageArgumentStatus = $packageStatus
-    }
-  }
 
-  try {
-    Stop-DreamSkinCodex -Codex $Codex -PreserveProcessIds $preservedProcessIds -AllowForce
-  } catch {
-    throw (New-DreamSkinStartException -Category 'cdp-launch-failed' `
-      -Message 'Codex package activation did not retain the CDP arguments, and its process could not be closed safely.' `
-      -InnerException $_.Exception)
-  }
-
-  try {
-    $directProcessId = Start-DreamSkinCodexDirect -Codex $Codex -Arguments $Arguments
-  } catch {
-    $failureKind = Get-DreamSkinDirectLaunchFailureKind -Exception $_.Exception
-    $category = if ($failureKind -ceq 'access-denied') {
-      'cdp-direct-access-denied'
-    } else {
-      'cdp-launch-failed'
-    }
-    throw (New-DreamSkinStartException -Category $category `
-      -Message "Codex $($Codex.Version) converted the CDP argument into a codex:// navigation path. Direct launch of the validated Store executable failed ($failureKind), so this Codex/Windows combination cannot expose the Dream Skin debugging endpoint without modifying the protected app package." `
-      -InnerException $_.Exception)
-  }
-
+  # Package activation rewrites --remote-debugging-port into a codex://
+  # navigation, so the previous flow launched Codex twice on every start: one
+  # package-activated instance, a forced close, then the validated direct
+  # launch. That flashed two Codex windows before the skin settled. Launch the
+  # validated Store executable directly and keep package activation out of the
+  # success path.
+  $directProcessId = Start-DreamSkinCodexDirect -Codex $Codex -Arguments $Arguments
   $directStatus = Wait-DreamSkinCodexDebugArgumentStatus -Codex $Codex -Port $Port
   if ($directStatus -in @('protocol-redirected', 'not-forwarded')) {
     try {
@@ -1158,18 +1133,16 @@ function Start-DreamSkinCodexForDebugging {
         -InnerException $_.Exception)
     }
     throw (New-DreamSkinStartException -Category 'cdp-endpoint-unavailable' `
-      -Message "Codex $($Codex.Version) did not retain the CDP argument during package activation or validated direct launch. Dream Skin cannot run without modifying the protected app package." `
+      -Message "Codex $($Codex.Version) did not retain the CDP argument during validated direct launch. Dream Skin cannot run without modifying the protected app package." `
       -InnerException $null)
   }
-
   return [pscustomobject]@{
     ProcessId = $directProcessId
     Strategy = 'direct-store-executable'
     ArgumentStatus = $directStatus
-    PackageArgumentStatus = $packageStatus
+    PackageArgumentStatus = 'skipped'
   }
 }
-
 function Get-DreamSkinCodexStatePathCandidate {
   param([AllowNull()][object]$State)
   if ($null -eq $State -or -not $State.codexExe -or -not $State.codexPackageRoot) { return $null }

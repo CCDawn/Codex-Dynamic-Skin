@@ -1084,7 +1084,16 @@ internal sealed class MainForm : Form
     }
     if (!_panelSlider.Focused)
     {
-      _panelSlider.Value = Math.Clamp(status.PanelTransparencyPercent ?? 30, 0, 100);
+      // A theme with no stored preference must not have its slider snapped back
+      // to the default. status.PanelTransparencyPercent is null both before the
+      // user touches the slider and right after a theme switch, so the old
+      // "?? 30" reset undid every drag: the value returned to 30, which renders
+      // at exactly the same alpha as the unset fallback, so the slider looked
+      // dead. Only mirror a real stored value and otherwise leave the knob be.
+      if (status.PanelTransparencyPercent is int storedPanelPercent)
+      {
+        _panelSlider.Value = Math.Clamp(storedPanelPercent, 0, 100);
+      }
       UpdatePanelLabel(status.PanelTransparencyPercent is null);
     }
     _trayIcon.Text = $"{DisplayName} · {status.Summary}";
