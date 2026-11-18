@@ -90,6 +90,10 @@ The manager provides two independent sliders on the right:
 - **Wallpaper reveal** controls the relationship between the theme veil and the wallpaper. `100%` shows the original image/video with the page-wide veil reduced to zero; lower values increase text-area and theme veil visibility, which suits task pages or high-contrast backgrounds.
 - **Panel transparency** controls the frosted-glass transparency of UI surfaces, applied to the session-area cards (composer, prompt banners, and so on) and panels — lower values are more transparent and let more wallpaper through. The two sliders are independent and can be combined.
 
+<p align="center">
+  <img src="docs/images/screenshot-manager.png" alt="Windows manager: wallpaper library (with Wallpaper Engine scenes), preview, and the two sliders for wallpaper reveal and panel transparency" width="100%">
+</p>
+
 ## macOS installation
 
 Open [`macos/`](./macos/) and double-click:
