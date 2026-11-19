@@ -195,6 +195,10 @@ jobs:
         shell: cmd
         run: node tools/build-theme-manager.mjs
 
+      - name: Build wallpaper manager
+        shell: pwsh
+        run: ./windows/app/build-manager.ps1 -SkipWindowsTests
+
       - name: Run Windows regression suite
         shell: cmd
         run: ${{ matrix.executable }} -NoLogo -NoProfile -ExecutionPolicy RemoteSigned -File .\windows\tests\run-tests.ps1
