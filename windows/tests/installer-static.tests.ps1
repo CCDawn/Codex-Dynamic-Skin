@@ -136,16 +136,15 @@ if ([regex]::Matches($definition, '(?m)^Name: "startup";').Count -ne 1 -or
   throw 'The installer startup task must exist exactly once and remain unchecked by default.'
 }
 $fileSources = [regex]::Matches($definition, '(?m)^Source: .*$')
-if ($fileSources.Count -ne 7 -or
+if ($fileSources.Count -ne 6 -or
   -not $fileSources[0].Value.Contains('{#StageRoot}\setup-bootstrap.ps1') -or
   -not $fileSources[0].Value.Contains('Flags: dontcopy noencryption') -or
   -not $fileSources[1].Value.Contains('{#StageRoot}\payload\*') -or
   -not $fileSources[1].Value.Contains('Flags: dontcopy noencryption') -or
   -not $fileSources[2].Value.Contains('{#StageRoot}\setup-bootstrap.ps1') -or
-  -not $fileSources[3].Value.Contains('{#StageRoot}\CodexDreamSkinManager.exe') -or
-  -not $fileSources[4].Value.Contains('{#StageRoot}\LICENSE.txt') -or
-  -not $fileSources[5].Value.Contains('{#StageRoot}\NOTICE.md') -or
-  -not $fileSources[6].Value.Contains('{#StageRoot}\payload\*') -or
+  -not $fileSources[3].Value.Contains('{#StageRoot}\LICENSE.txt') -or
+  -not $fileSources[4].Value.Contains('{#StageRoot}\NOTICE.md') -or
+  -not $fileSources[5].Value.Contains('{#StageRoot}\payload\*') -or
   $definition.Contains('[UninstallRun]')) {
   throw 'The installed app must contain the bootstrap, notices, and one managed-engine seed payload.'
 }

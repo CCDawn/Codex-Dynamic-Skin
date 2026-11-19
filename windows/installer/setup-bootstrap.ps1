@@ -174,7 +174,7 @@ try {
   }
 
   if ($LaunchTray) {
-  $managerPath = Join-Path (Split-Path -Parent $PSCommandPath) 'CodexDreamSkinManager.exe'
+  $managerPath = Join-Path (Join-Path (Split-Path -Parent $PSCommandPath) 'payload') 'CodexDreamSkinManager.exe'
   if (-not (Test-Path -LiteralPath $managerPath -PathType Leaf)) {
     throw 'The wallpaper manager is missing. Reinstall Codex Dynamic Skin.'
   }

@@ -373,7 +373,7 @@ try {
   if (-not (Test-Path -LiteralPath $managerExePath -PathType Leaf)) {
     throw 'The wallpaper manager executable is missing. Build it with: powershell -File windows/app/build-manager.ps1'
   }
-  Copy-Item -LiteralPath $managerExePath -Destination (Join-Path $stageRoot 'CodexDreamSkinManager.exe') -Force
+  Copy-Item -LiteralPath $managerExePath -Destination (Join-Path $payloadRoot 'CodexDreamSkinManager.exe') -Force
   Copy-Item -LiteralPath $bootstrapPath -Destination (Join-Path $stageRoot 'setup-bootstrap.ps1') -Force
   Copy-Item -LiteralPath $licensePath -Destination (Join-Path $stageRoot 'LICENSE.txt') -Force
   Copy-Item -LiteralPath $noticePath -Destination (Join-Path $stageRoot 'NOTICE.md') -Force
