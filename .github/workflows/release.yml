@@ -395,6 +395,9 @@ jobs:
       - name: Build native theme manager
         shell: cmd
         run: node tools/build-theme-manager.mjs
+      - name: Build wallpaper manager
+        shell: pwsh
+        run: ./windows/app/build-manager.ps1 -SkipWindowsTests
 
       - name: Install Inno Setup 6
         shell: pwsh

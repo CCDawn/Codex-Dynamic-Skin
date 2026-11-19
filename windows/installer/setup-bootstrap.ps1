@@ -174,12 +174,16 @@ try {
   }
 
   if ($LaunchTray) {
-    $powershell = (Get-Command powershell.exe -ErrorAction Stop).Source
-    $argumentLine = '-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy RemoteSigned -File ' +
-      (ConvertTo-DreamSkinProcessArgument -Value $engine.Tray)
-    if ($ShowWindow) { $argumentLine += ' -ShowWindow' }
-    Start-Process -FilePath $powershell -ArgumentList $argumentLine -WindowStyle Hidden | Out-Null
+  $managerPath = Join-Path (Split-Path -Parent $PSCommandPath) 'CodexDreamSkinManager.exe'
+  if (-not (Test-Path -LiteralPath $managerPath -PathType Leaf)) {
+    throw 'The wallpaper manager is missing. Reinstall Codex Dynamic Skin.'
   }
+  if ($ShowWindow) {
+    Start-Process -FilePath $managerPath | Out-Null
+  } else {
+    Start-Process -FilePath $managerPath -ArgumentList '--minimized' | Out-Null
+  }
+}
 } catch {
   Show-DreamSkinBootstrapMessage -Message $_.Exception.Message -Kind Error
   Write-Error $_

@@ -358,6 +358,7 @@ function Get-DreamSkinMediaType {
   $extension = [System.IO.Path]::GetExtension($Path).ToLowerInvariant()
   if ($extension -in @('.png', '.jpg', '.jpeg', '.webp')) { return 'image' }
   if ($extension -in @('.mp4', '.webm')) { return 'video' }
+  if ($extension -eq '.pkg') { return 'scene' }
   throw "Unsupported theme media format: $extension"
 }
 
