@@ -353,6 +353,23 @@ function Assert-DreamSkinVideoFile {
   if (-not $valid) { throw "Video container signature does not match $extension" }
 }
 
+function Assert-DreamSkinSceneFile {
+  param([Parameter(Mandatory = $true)][string]$Path)
+  $fullPath = [System.IO.Path]::GetFullPath($Path)
+  if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
+    throw "Scene package does not exist: $fullPath"
+  }
+  $extension = [System.IO.Path]::GetExtension($fullPath).ToLowerInvariant()
+  if ($extension -ne '.pkg') {
+    throw "Unsupported scene package format: $extension"
+  }
+  # A .pkg is Wallpaper Engine's encrypted scene container: the PowerShell
+  # side never parses its bytes, so presence plus a non-empty check is the
+  # whole contract.  Runtime rejection stays with the injector.
+  $length = (Get-Item -LiteralPath $fullPath -Force).Length
+  if ($length -lt 1) { throw 'Theme scene package cannot be empty.' }
+}
+
 function Get-DreamSkinMediaType {
   param([Parameter(Mandatory = $true)][string]$Path)
   $extension = [System.IO.Path]::GetExtension($Path).ToLowerInvariant()
@@ -410,6 +427,8 @@ function Assert-DreamSkinMediaFile {
   $mediaType = Get-DreamSkinMediaType -Path $Path
   if ($mediaType -ceq 'video') {
     Assert-DreamSkinVideoFile -Path $Path
+  } elseif ($mediaType -ceq 'scene') {
+    Assert-DreamSkinSceneFile -Path $Path
   } else {
     Assert-DreamSkinImageFile -Path $Path -SkipImageMetadata:$SkipImageMetadata
   }
@@ -666,7 +685,10 @@ function Get-DreamSkinWallpaperEngineReference {
     return $null
   }
   $mediaType = Assert-DreamSkinMediaFile -Path $mediaPath
-  if ($mediaType -cne 'video') {
+  # Legacy scene themes directly reference the Workshop item's encrypted
+  # scene.pkg; tolerate those references so Read-DreamSkinTheme can report the
+  # computed scene type instead of failing install or startup.
+  if ($mediaType -cne 'video' -and $mediaType -cne 'scene') {
     throw 'Wallpaper Engine direct references only support MP4 or WebM video media.'
   }
   return [pscustomobject]@{
@@ -924,12 +946,20 @@ function Read-DreamSkinTheme {
     $mediaType
   }
   if ($declaredMediaType -ceq 'scene') {
-    if ($mediaType -cne 'image' -or
+    if ($mediaType -ceq 'scene') {
+      # Legacy themes carry (or reference) the encrypted scene.pkg itself: a
+      # coherent scene declaration must keep reading so installs and upgrades
+      # do not roll back over the stale media shape.  The injector rejects
+      # these at runtime and preserves the current wallpaper.
+    } elseif ($mediaType -cne 'image' -or
         -not (Test-DreamSkinLoopbackStreamUrl -Url "$($theme.media.streamUrl)") -or
         "$($theme.media.codec)" -cnotmatch '^avc1\.[0-9a-f]{6}$') {
       throw 'Scene themes require an image preview and a valid loopback H.264 stream (avc1.XXYYZZ codec).'
     }
     $mediaType = 'scene'
+  } elseif ($mediaType -ceq 'scene' -and $declaredMediaType -ceq 'video') {
+    # Legacy Wallpaper Engine scene themes declared their .pkg as "video";
+    # tolerate the stale declaration and report the computed scene type.
   } elseif ($declaredMediaType -cne $mediaType) {
     throw "Theme media type does not match its file extension: $mediaPath"
   }
@@ -1094,7 +1124,14 @@ function Initialize-DreamSkinThemeStore {
       }
     }
   }
-  $null = Read-DreamSkinTheme -ThemeDirectory $paths.Active
+  # Final validation is advisory only: a damaged or legacy-shaped active theme
+  # must not fail the whole install or startup, because the injector already
+  # rejects bad themes at runtime and preserves the current wallpaper.
+  try {
+    $null = Read-DreamSkinTheme -ThemeDirectory $paths.Active
+  } catch {
+    Write-Warning "The active theme failed validation and will be ignored until it is repaired or replaced: $($_.Exception.Message)"
+  }
   return $paths
 }
 

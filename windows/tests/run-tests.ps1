@@ -1504,6 +1504,76 @@ try {
     $nonIntegralSchemaRejected = $true
   }
   if (-not $nonIntegralSchemaRejected) { throw 'A non-integer theme schemaVersion was accepted as version 1.' }
+
+  # Legacy Wallpaper Engine scene themes must read as scene media instead of
+  # failing the image assertion, whatever the stale declared type says: a
+  # resolvable Workshop scene.pkg reference, an unresolvable reference with a
+  # local .pkg copy, and a coherent declared-scene .pkg copy all stay readable
+  # so installs and upgrades never roll back over the legacy shape.
+  $legacySceneWorkshopItem = Join-Path $wallpaperEngineContent '1357924680'
+  New-Item -ItemType Directory -Path $legacySceneWorkshopItem -Force | Out-Null
+  Write-DreamSkinUtf8FileAtomically -Path (Join-Path $legacySceneWorkshopItem 'project.json') `
+    -Content '{"type":"scene","title":"Legacy scene wallpaper"}'
+  $legacyScenePackageBytes = [System.Text.Encoding]::ASCII.GetBytes('wallpaper-engine-scene-fixture')
+  [System.IO.File]::WriteAllBytes(
+    (Join-Path $legacySceneWorkshopItem 'scene.pkg'), $legacyScenePackageBytes)
+  $legacySceneReferenceTheme = Join-Path $temporaryRoot 'legacy-scene-reference-theme'
+  New-Item -ItemType Directory -Path $legacySceneReferenceTheme | Out-Null
+  Write-DreamSkinUtf8FileAtomically -Path (Join-Path $legacySceneReferenceTheme 'theme.json') `
+    -Content ('{"schemaVersion":1,"id":"legacy-scene-reference","image":"scene.pkg",' +
+      '"media":{"type":"video","source":"wallpaper-engine-local","workshopId":"1357924680",' +
+      '"workshopRoot":"' + $wallpaperEngineContent.Replace('\', '\\') + '","relativePath":"scene.pkg"}}')
+  $legacySceneReferenceLoaded = Read-DreamSkinTheme -ThemeDirectory $legacySceneReferenceTheme
+  if ($legacySceneReferenceLoaded.MediaType -cne 'scene' -or
+    $legacySceneReferenceLoaded.ImagePath -cne
+    [System.IO.Path]::GetFullPath((Join-Path $legacySceneWorkshopItem 'scene.pkg'))) {
+    throw 'A resolvable Wallpaper Engine scene.pkg reference did not read as a scene theme.'
+  }
+  foreach ($legacyDeclaredType in @('video', 'scene')) {
+    $legacySceneLocalTheme = Join-Path $temporaryRoot "legacy-scene-local-$legacyDeclaredType-theme"
+    New-Item -ItemType Directory -Path $legacySceneLocalTheme | Out-Null
+    [System.IO.File]::WriteAllBytes(
+      (Join-Path $legacySceneLocalTheme 'scene.pkg'), $legacyScenePackageBytes)
+    # WorkshopId 246801359 does not exist in the fixture workshop, so the
+    # reference cannot resolve and the local .pkg copy decides the media type.
+    Write-DreamSkinUtf8FileAtomically -Path (Join-Path $legacySceneLocalTheme 'theme.json') `
+      -Content ('{"schemaVersion":1,"id":"legacy-scene-local-' + $legacyDeclaredType + '","image":"scene.pkg",' +
+        '"media":{"type":"' + $legacyDeclaredType + '","source":"wallpaper-engine-local",' +
+        '"workshopId":"246801359","workshopRoot":"' + $wallpaperEngineContent.Replace('\', '\\') +
+        '","relativePath":"scene.pkg"}}')
+    $legacySceneLocalLoaded = Read-DreamSkinTheme -ThemeDirectory $legacySceneLocalTheme
+    if ($legacySceneLocalLoaded.MediaType -cne 'scene') {
+      throw "A legacy scene.pkg copy declared $legacyDeclaredType did not read as a scene theme."
+    }
+  }
+  $canonicalSceneRegressionTheme = Join-Path $temporaryRoot 'canonical-scene-theme'
+  New-Item -ItemType Directory -Path $canonicalSceneRegressionTheme | Out-Null
+  Copy-Item -LiteralPath (Join-Path $Root 'assets\blank.png') `
+    -Destination (Join-Path $canonicalSceneRegressionTheme 'scene-preview.png')
+  Write-DreamSkinUtf8FileAtomically -Path (Join-Path $canonicalSceneRegressionTheme 'theme.json') `
+    -Content ('{"schemaVersion":1,"id":"wallpaper-engine-scene-1357924680","image":"scene-preview.png",' +
+      '"media":{"type":"scene","streamUrl":"http://127.0.0.1:8787/abcdefghijklmnop/stream.mp4",' +
+      '"codec":"avc1.42041f","playbackRate":1,"opacity":1,"scenePath":"' +
+      (Join-Path $legacySceneWorkshopItem 'scene.pkg').Replace('\', '\\') + '","workshopId":"1357924680"}}')
+  $canonicalSceneRegressionLoaded = Read-DreamSkinTheme -ThemeDirectory $canonicalSceneRegressionTheme
+  if ($canonicalSceneRegressionLoaded.MediaType -cne 'scene' -or
+    $canonicalSceneRegressionLoaded.Theme.media.type -cne 'scene') {
+    throw 'The canonical scene stream theme contract did not keep reading as a scene theme.'
+  }
+  $mismatchedSceneTheme = Join-Path $temporaryRoot 'mismatched-scene-theme'
+  New-Item -ItemType Directory -Path $mismatchedSceneTheme | Out-Null
+  [System.IO.File]::WriteAllBytes(
+    (Join-Path $mismatchedSceneTheme 'scene.pkg'), $legacyScenePackageBytes)
+  Write-DreamSkinUtf8FileAtomically -Path (Join-Path $mismatchedSceneTheme 'theme.json') `
+    -Content '{"schemaVersion":1,"id":"mismatched-scene","image":"scene.pkg","media":{"type":"image"}}'
+  $mismatchedSceneRejected = $false
+  try { $null = Read-DreamSkinTheme -ThemeDirectory $mismatchedSceneTheme -SkipImageMetadata } catch {
+    $mismatchedSceneRejected = $true
+  }
+  if (-not $mismatchedSceneRejected) {
+    throw 'A scene.pkg declared as image media must keep failing the declared-type consistency check.'
+  }
+
   $fakeVideo = Join-Path $temporaryRoot 'fake.mp4'
   [System.IO.File]::WriteAllText($fakeVideo, 'not an mp4')
   $fakeVideoRejected = $false
