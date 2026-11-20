@@ -1650,10 +1650,14 @@ html[data-dream-skin="active"][data-dream-ui="wallpaper-only"]
 }
 
 html[data-dream-skin="active"][data-dream-ui="wallpaper-only"]
-[class*="ComposerLayoutBody"][class*="ComposerLayoutBody"][class*="ComposerLayoutBody"][class*="ComposerLayoutBody"] {
-  background-color: rgb(26 28 31 / 0.08) !important;
-  box-shadow: 0 0 0 1px rgb(26 28 31 / 0.14) !important;
+[class*="ComposerLayoutBody"][class*="ComposerLayoutBody"][class*="ComposerLayoutBody"][class*="ComposerLayoutBody"][class*="ComposerLayoutBody"][class*="ComposerLayoutBody"] {
+  background-color: rgb(26 28 31 / 0.55) !important;
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.14),
+    0 16px 38px rgb(0 0 0 / 0.32) !important;
   border-radius: 16px !important;
+  backdrop-filter: blur(20px) saturate(1.05) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.05) !important;
 }
 
 /* 26.1111 footer-A8ZvKV paints the transcript fade with two pseudo layers:

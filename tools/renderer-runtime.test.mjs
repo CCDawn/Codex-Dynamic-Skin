@@ -526,7 +526,7 @@ export async function runRendererRuntimeTest(assetRoot) {
     // The composer card is a content layer, not a panel layer: it keeps a fixed
     // tint plus a hairline edge so the input field stays visible against the
     // wallpaper at any slider alpha.
-    new RegExp(`html\\[data-dream-skin="active"\\]\\[data-dream-ui="wallpaper-only"\\]\\s+\\[class\\*="ComposerLayoutBody"\\]\\[class\\*="ComposerLayoutBody"\\]\\[class\\*="ComposerLayoutBody"\\]\\[class\\*="ComposerLayoutBody"\\]\\s*\\{\\s*background-color: rgb\\(26 28 31 / 0\\.08\\) !important;`),
+    new RegExp(`html\\[data-dream-skin="active"\\]\\[data-dream-ui="wallpaper-only"\\]\\s+\\[class\\*="ComposerLayoutBody"\\]\\[class\\*="ComposerLayoutBody"\\]\\[class\\*="ComposerLayoutBody"\\]\\[class\\*="ComposerLayoutBody"\\]\\[class\\*="ComposerLayoutBody"\\]\\[class\\*="ComposerLayoutBody"\\]\\s*\\{\\s*background-color: rgb\\(26 28 31 / 0\\.55\\) !important;`),
   ]) {
     assert.match(css, keptRule, "Surface-transparency rules must stay active in wallpaper-only mode.");
   }
