@@ -51,7 +51,7 @@ const stableTestidLiteral = (testid) => {
   }
   return JSON.stringify(`[data-testid="${testid}"]`);
 };
-const SKIN_VERSION = "1.8.5";
+const SKIN_VERSION = "1.8.6";
 // .github/workflows/ci.yml's version-consistency check greps this file for a
 // literal `const SKIN_VERSION = "...";` line, so the export stays a separate
 // statement rather than an inline `export const`.
@@ -282,9 +282,19 @@ export function assessRendererVerification(renderer, nativeWindow, expected) {
     Array.isArray(result.scope?.missingL1) && result.scope.missingL1.length === 0;
   const genericStructurePass = l1ScopePass && Boolean(result.genericMain?.visible) &&
     (Boolean(result.genericInput?.visible) || Boolean(homeRoute && result.homePresent));
-  const l0StructurePass = result.scope?.level === "L0" &&
+  const l0SettingsPass = result.scope?.level === "L0" &&
     settingsRoute && Boolean(result.settings?.visible);
-  const structurePass = l0StructurePass || (l1ScopePass && (
+  // Codex 26.11xx degrades Home and thread scopes to L0 because that build
+  // omits the header tint marker, even though the shell, sidebar and the page
+  // surface are plainly visible. Accept those L0 pages so a rendered
+  // conversation is not reported as a structural failure that aborts the
+  // whole start. Missing shell or sidebar anchors still fail closed.
+  const l0SurfacePass = result.scope?.level === "L0" &&
+    Boolean(result.shell?.visible) && Boolean(result.sidebar?.visible) &&
+    (Boolean(result.settings?.visible) ||
+      Boolean(homeRoute && result.homePresent) ||
+      Boolean(result.genericInput?.visible));
+  const structurePass = l0SettingsPass || l0SurfacePass || (l1ScopePass && (
     (Boolean(result.shell?.visible) && Boolean(result.sidebar?.visible)) || genericStructurePass
   ));
   const nativeWindowPass = nativeWindow?.status === "ready";

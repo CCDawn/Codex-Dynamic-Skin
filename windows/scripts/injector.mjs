@@ -47,7 +47,7 @@ const stableTestidLiteral = (testid) => {
   }
   return JSON.stringify(`[data-testid="${testid}"]`);
 };
-const SKIN_VERSION = "1.8.5";
+const SKIN_VERSION = "1.8.6";
 // .github/workflows/ci.yml's version-consistency check greps this file for a
 // literal `const SKIN_VERSION = "...";` line, so the export stays a separate
 // statement rather than an inline `export const`.
@@ -1688,7 +1688,7 @@ export async function verifySession(
         x: Math.round(r.x), y: Math.round(r.y),
         width: Math.round(r.width), height: Math.round(r.height),
         visible: Boolean(node.isConnected !== false && cssVisible && intersectsViewport),
-        withinViewport: r.x >= 0 && r.y >= 0 && right <= innerWidth && bottom <= innerHeight,
+        withinViewport: r.x >= 0 && r.y >= 0 && right <= innerWidth + 1 && bottom <= innerHeight + 1,
       };
     };
     const activeNodes = (selector) => [...document.querySelectorAll(selector)]
@@ -1806,9 +1806,19 @@ export async function verifySession(
       Array.isArray(result.scope?.missingL1) && result.scope.missingL1.length === 0;
     const genericStructurePass = l1ScopePass && Boolean(result.genericMain?.visible) &&
       Boolean(result.genericInput?.visible || (homeScope && result.homeSurface?.visible));
-    const l0StructurePass = result.scope?.level === 'L0' &&
+    const l0SettingsPass = result.scope?.level === 'L0' &&
       result.scope?.baseState === 'settings' && Boolean(result.settingsAnchor?.visible);
-    const structurePass = l0StructurePass || (l1ScopePass &&
+    // Codex 26.11xx degrades Home and thread scopes to L0 because that build
+    // omits the header tint marker, even though the shell, sidebar and the page
+    // surface are plainly visible. Accept those L0 pages so a rendered
+    // conversation is not reported as a structural failure that aborts the
+    // whole start. Missing shell or sidebar anchors still fail closed.
+    const l0SurfacePass = result.scope?.level === 'L0' &&
+      Boolean(result.shell?.visible && result.sidebar?.visible) &&
+      (Boolean(result.settingsAnchor?.visible) ||
+       Boolean(result.homeSurface?.visible) ||
+       Boolean((result.composer ?? result.genericInput)?.visible));
+    const structurePass = l0SettingsPass || l0SurfacePass || (l1ScopePass &&
       (Boolean(result.shell?.visible && result.sidebar?.visible) || genericStructurePass));
     const documentPass = result.documentVisibility === 'visible' && !result.documentHidden;
     const viewportPass = result.viewport.width >= ${MIN_RENDERER_VIEWPORT_WIDTH} &&
