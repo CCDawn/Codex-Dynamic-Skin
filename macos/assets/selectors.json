@@ -2,8 +2,13 @@
   "schema": "codex-dream-skin-selectors/1",
   "description": "双端统一选择器契约。scope 与 required 来自双端 DOM 快照实测；shell-main 与 header-tint 另由 2026-07-31 Codex 26.727.40816 真实 macOS renderer 复核。doctor / CI 应逐条 querySelector 并按 tier 判级：L1 缺失=皮肤主行为受损，L2 缺失=精修静默降级。",
   "verifiedAgainst": {
-    "date": "2026-11-13",
+    "date": "2026-11-23",
     "codexVersions": [
+      {
+        "version": "26.1117.4957.0",
+        "platform": "windows",
+        "evidence": "maintainer: 本机 Microsoft Store 版 Codex 26.1117.4957.0 真实会话页只读 DOM 实测：header 仍是 main 的第一个子元素，但元素只有 <header class=\"flex h-toolbar w-full shrink-0 items-center border-b border-default pe-2 draggable\" style=\"padding-inline-start: 8px\">；旧三段兜底（.app-header-tint、[data-app-shell-header-edge-scroll]、[class*=\"_Header_\"]）全部不命中，app-shell 自定义属性族（--app-shell-titlebar-height 等）仍在容器 DIV 上；侧栏迷你头是类为 h-toolbar-sm 的 DIV（不同类且非 header 标签），不会与 h-toolbar/draggable 误配。合同据此追加 .h-toolbar、.draggable 兜底，并把 header-tint 降为非必需装饰锚点（#16：missingL1 含 header-tint 曾致 verify 失败并全量拆除已成功的注入）"
+      },
       {
         "version": "26.1106.6628",
         "platform": "windows",
@@ -60,11 +65,11 @@
         "evidence": "fixture: runtime/dom-fixtures/codex-dom-fixture-win32-watch.json（7 状态）；bundle hash 与 mac 不同（ModelPickerTrigger mac=1fm6a win=1w4ob），确认双端存在版本错位"
       }
     ],
-    "verdict": "双端运行时继续共用一份 selector/CSS 合同。26.727.40816 起主表面与顶栏的旧语义类改为 CSS Modules，26.803~26.818 又把输入框壳迁到 _ComposerLayoutRoot_；合同的做法始终是保留旧锚点、追加稳定属性或模块名前缀，绝不匹配完整 hash。注意 26.803 之后每一条证据都来自报告者，维护者没有对应平台的本机 renderer 复核——不要把它们当成与 26.727 同等强度的验收。",
+    "verdict": "双端运行时继续共用一份 selector/CSS 合同。26.727.40816 起主表面与顶栏的旧语义类改为 CSS Modules，26.803~26.818 又把输入框壳迁到 _ComposerLayoutRoot_，26.1117 则把顶栏降为纯 Tailwind 工具类；合同的做法始终是保留旧锚点、追加稳定属性或模块名前缀，绝不匹配完整 hash。中间一段（26.803~26.924）的证据多来自报告者，维护者缺少对应平台的本机 renderer 复核，不要把它们当成与 26.727/26.1106/26.1117 同等强度的验收。装饰性锚点（header-tint）缺失只允许降级外观，不允许触发拆除；结构判定以 shell-main / left-panel 等 required 锚点为准。",
     "gaps": [
-      "Windows 26.727 之后至今没有维护者本机 renderer 复核",
+      "Windows 26.1117.4957.0 仅复核了顶栏锚点（h-toolbar/draggable、旧三段兜底失配）与 app-shell 属性族仍在；composer / 主表面等其余锚点未在该版本逐条实测",
       "#376：26.814.5517.0 上 Codex 设置→外观切换深浅色后主题混色，settings/appearance 路径的锚点行为未验证",
-      "#371：Windows 顶部与底部区域配色与主区不一致，尚未确认是 header-tint 未命中还是原生层未被覆盖"
+      "#371：Windows 顶部与底部区域配色与主区不一致，尚未确认是 header-tint 未命中还是原生层未被覆盖（26.1117 实测旧兜底全部失配，证实 header-tint 确曾未命中）"
     ]
   },
   "appearanceSignal": {
@@ -83,7 +88,7 @@
   "selectors": [
     { "key": "shell-main", "selector": "main:is(.main-surface, [data-app-shell-main-surface], [class*=\"MainContentSurface\"])", "tier": "L1", "scope": "all", "required": true, "notes": "全局主表面。26.727.40816 提供 data-app-shell-main-surface，并使用 MainContentSurface CSS Module；保留旧类兼容历史版本，前缀只限定在 main 元素。mac 设置页缺失（win 存在），缺失时整页仅 L0" },
     { "key": "left-panel", "selector": "aside.app-shell-left-panel", "tier": "L1", "scope": "all", "required": true, "notes": "左侧栏；收起/重建时会移除节点，勿在其消失时清皮" },
-    { "key": "header-tint", "selector": "header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*=\"_Header_\"])", "tier": "L1", "scope": "all", "required": true, "notes": "顶栏。26.727.40816 输出 data-app-shell-header-edge-scroll 并使用 _Header_ CSS Module；保留旧类兼容历史版本，前缀只限定在 header 元素。皮肤不得覆盖其 position/z-index（既有回归约束）" },
+    { "key": "header-tint", "selector": "header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*=\"_Header_\"], .h-toolbar, .draggable)", "tier": "L1", "scope": "all", "required": false, "notes": "顶栏。26.727.40816 输出 data-app-shell-header-edge-scroll 并使用 _Header_ CSS Module；26.1117 起顶栏只剩 Tailwind 工具类 h-toolbar 与 draggable（稳定的高度令牌类与窗口拖拽区类），旧三段兜底全部失配，故追加新类并保留旧类兼容历史版本，前缀只限定在 header 元素；侧栏迷你头是 h-toolbar-sm 的 DIV，不会误配。macOS 26.1117 未实测，复用同一兜底（双端 DOM 同源）。装饰性锚点：壁纸与主结构不依赖它，required=false——未来 Codex 更新致未命中时只降级顶栏玻璃效果，不得令 structurePass 失败而拆除已成功的注入（#16 教训）。皮肤不得覆盖其 position/z-index（既有回归约束）" },
     { "key": "main-content-top-fade", "selector": ":is(.app-shell-main-content-top-fade, [data-app-shell-main-content-top-fade]:not(:has(*)), [class*=\"MainContentTopFade\"])", "tier": "L2", "scope": "all", "required": false, "notes": "主区顶部渐变遮罩。26.727.40816 提供 data-app-shell-main-content-top-fade 并使用 _MainContentTopFade_ CSS Module；用于在主题背景下移除原生白色 fade。26.924 把该属性从遮罩层移到了包裹整条路由的容器上，裸属性会连带命中 thread 滚动容器与 composer，导致任意会话右栏空白（#415/#414）。属性形式因此限定为无子元素的原生遮罩层，两个旧 class 形式保持不变。26.1106.6628 实机 CDP 读数：类名为无下划线 MainContentTopFade-<hash>，子串去下划线后新旧两式都命中" },
     { "key": "home-icon", "selector": "[data-testid=\"home-icon\"]", "tier": "L1", "scope": "home", "required": true, "notes": "首页判定信号，双端一致" },
     { "key": "home-route", "selector": "[role=\"main\"]:has([data-testid=\"home-icon\"])", "tier": "L1", "scope": "home", "required": true, "notes": "首页容器。实测 [role=main] 仅存在于首页——它不是通用路由锚点，thread 页没有" },

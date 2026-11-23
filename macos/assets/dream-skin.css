@@ -447,7 +447,7 @@ html[data-dream-skin="active"][data-dream-ui="full"]:is([data-dream-task-mode="a
 }
 
 html[data-dream-skin="active"][data-dream-ui="full"]:is([data-dream-task-mode="ambient"], [data-dream-art-task-mode="ambient"], [data-dream-task-mode="banner"], [data-dream-art-task-mode="banner"])[data-dream-art-wide="true"]:has(main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"])):not(:has(main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"]):not([data-app-shell-active-page="false"], [data-app-shell-active-page="false"] *) [role="main"]))
-  main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"]) > header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*="_Header_"]) {
+  main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"]) > header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*="_Header_"], .h-toolbar, .draggable) {
   background: transparent !important;
   border-bottom: 0 !important;
   box-shadow: none !important;
@@ -490,7 +490,7 @@ html[data-dream-skin="active"][data-dream-ui="full"]:is([data-dream-task-mode="o
   content: none;
 }
 
-html[data-dream-skin="active"][data-dream-ui="full"] main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"]):not(:has([role="main"])) > :not(header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*="_Header_"])) {
+html[data-dream-skin="active"][data-dream-ui="full"] main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"]):not(:has([role="main"])) > :not(header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*="_Header_"], .h-toolbar, .draggable)) {
   position: relative;
   z-index: 1;
 }
@@ -556,7 +556,7 @@ html[data-dream-skin="active"][data-dream-ui="full"][data-dream-shell="light"] [
   text-shadow: none;
 }
 
-html[data-dream-skin="active"][data-dream-ui="full"] main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"]) > header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*="_Header_"]) {
+html[data-dream-skin="active"][data-dream-ui="full"] main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"]) > header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*="_Header_"], .h-toolbar, .draggable) {
   /* Preserve Codex's native fixed header geometry and side-panel controls. */
   background: rgb(var(--ds-panel-rgb) / var(--ds-upload-panel-alpha, .90)) !important;
   border-bottom: 1px solid var(--ds-line) !important;
@@ -565,7 +565,7 @@ html[data-dream-skin="active"][data-dream-ui="full"] main:is(.main-surface, [dat
 
 /* Decorative chrome lives on the native shell; no injected positioning host is needed. */
 html[data-dream-skin="active"][data-dream-ui="full"]
-  main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"]):not(:has([role="main"])) > header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*="_Header_"])::before {
+  main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"]):not(:has([role="main"])) > header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*="_Header_"], .h-toolbar, .draggable)::before {
   content: none;
   position: absolute;
   left: 22px;
@@ -583,7 +583,7 @@ html[data-dream-skin="active"][data-dream-ui="full"]
 }
 
 html[data-dream-skin="active"][data-dream-ui="full"]
-  main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"]):not(:has([role="main"])) > header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*="_Header_"])::after {
+  main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"]):not(:has([role="main"])) > header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*="_Header_"], .h-toolbar, .draggable)::after {
   content: none;
   position: absolute;
   right: 84px;
@@ -616,9 +616,9 @@ html[data-dream-skin="active"][data-dream-ui="full"]
 }
 
 html[data-dream-skin="active"][data-dream-ui="full"][data-dream-shell="light"]
-  main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"]):not(:has([role="main"])) > header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*="_Header_"])::before,
+  main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"]):not(:has([role="main"])) > header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*="_Header_"], .h-toolbar, .draggable)::before,
 html[data-dream-skin="active"][data-dream-ui="full"][data-dream-shell="light"]
-  main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"]):not(:has([role="main"])) > header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*="_Header_"])::after {
+  main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"]):not(:has([role="main"])) > header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*="_Header_"], .h-toolbar, .draggable)::after {
   text-shadow: none;
 }
 
@@ -1098,7 +1098,7 @@ html[data-dream-skin="active"][data-dream-ui="full"][data-dream-art-wide="true"]
 }
 
 html[data-dream-skin="active"][data-dream-ui="full"][data-dream-art-wide="true"] main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"]):has([role="main"])
-  > header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*="_Header_"]) {
+  > header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*="_Header_"], .h-toolbar, .draggable) {
   background: transparent !important;
   border-bottom: 0 !important;
   box-shadow: none !important;
@@ -1106,7 +1106,7 @@ html[data-dream-skin="active"][data-dream-ui="full"][data-dream-art-wide="true"]
 }
 
 html[data-dream-skin="active"][data-dream-ui="full"][data-dream-art-wide="true"] main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"])
-  > header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*="_Header_"]) {
+  > header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*="_Header_"], .h-toolbar, .draggable) {
   color: var(--ds-text) !important;
   text-shadow:
     0 1px 2px rgb(var(--ds-bg-rgb) / .86),
@@ -1114,7 +1114,7 @@ html[data-dream-skin="active"][data-dream-ui="full"][data-dream-art-wide="true"]
 }
 
 html[data-dream-skin="active"][data-dream-ui="full"][data-dream-art-wide="true"] main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"])
-  > header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*="_Header_"]) svg {
+  > header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*="_Header_"], .h-toolbar, .draggable) svg {
   color: rgb(var(--ds-muted-rgb) / .96) !important;
   filter: drop-shadow(0 1px 2px rgb(var(--ds-bg-rgb) / .72));
 }

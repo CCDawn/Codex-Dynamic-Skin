@@ -222,6 +222,22 @@ assert.equal(
   true,
   "A complete L1 scope may verify through registered generic app parts.",
 );
+
+// #16: the top-bar glass is decorative. Codex 26.1117 dropped every legacy
+// header fallback and, while header-tint was still a required L1 anchor, the
+// launcher verify failed and tore down a working skin. The injector must not
+// probe the decorative header at all, and an L1 scope with an empty missingL1
+// (the renderer's exact output when only header-tint misses) must verify.
+assert.doesNotMatch(
+  injectorSource,
+  /selectorLiteral\("header-tint"\)/,
+  "Verification must never probe the decorative header anchor (#16).",
+);
+assert.equal(
+  assessRendererVerification({ ...baseRenderer }, readyNativeWindow, exactPayload).pass,
+  true,
+  "An L1 scope with an empty missingL1 must verify even with the top bar unthemed (#16).",
+);
 assert.equal(
   assessRendererVerification(
     { ...baseRenderer, viewport: { width: 1, height: 1 } },

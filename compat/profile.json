@@ -23,11 +23,11 @@
     },
     {
       "key": "header-tint",
-      "selector": "header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*=\"_Header_\"])",
+      "selector": "header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*=\"_Header_\"], .h-toolbar, .draggable)",
       "tier": "L1",
       "scope": "all",
-      "required": true,
-      "notes": "顶栏。26.727.40816 输出 data-app-shell-header-edge-scroll 并使用 _Header_ CSS Module；保留旧类兼容历史版本，前缀只限定在 header 元素。皮肤不得覆盖其 position/z-index（既有回归约束）"
+      "required": false,
+      "notes": "顶栏。26.727.40816 输出 data-app-shell-header-edge-scroll 并使用 _Header_ CSS Module；26.1117 起顶栏只剩 Tailwind 工具类 h-toolbar 与 draggable（稳定的高度令牌类与窗口拖拽区类），旧三段兜底全部失配，故追加新类并保留旧类兼容历史版本，前缀只限定在 header 元素；侧栏迷你头是 h-toolbar-sm 的 DIV，不会误配。macOS 26.1117 未实测，复用同一兜底（双端 DOM 同源）。装饰性锚点：壁纸与主结构不依赖它，required=false——未来 Codex 更新致未命中时只降级顶栏玻璃效果，不得令 structurePass 失败而拆除已成功的注入（#16 教训）。皮肤不得覆盖其 position/z-index（既有回归约束）"
     },
     {
       "key": "main-content-top-fade",

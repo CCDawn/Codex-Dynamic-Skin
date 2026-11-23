@@ -302,6 +302,31 @@ test("visible settings is the only L0 structure exception", async () => {
     "A renderer that claims Home must expose a real Home identity signal.");
 });
 
+test("the decorative header anchor cannot fail verification (#16)", async () => {
+  // Codex 26.1117 dropped every legacy header fallback and the top-bar glass
+  // went missing; because header-tint was a required L1 anchor, the launcher's
+  // verify failed and tore down an otherwise working skin (#16). The injector
+  // must never probe the decorative header, and the renderer's exact output
+  // when only header-tint misses — an L1 scope with an empty missingL1 — must
+  // verify. Required anchors (shell-main/left-panel) stay fail-closed above.
+  const injectorSource = await fs.readFile(
+    path.resolve(here, "../scripts/injector.mjs"), "utf8",
+  );
+  assert.doesNotMatch(
+    injectorSource,
+    /selectorLiteral\("header-tint"\)/,
+    "Verification must not depend on the decorative header anchor.",
+  );
+  const decorativeHeaderMiss = await verify({
+    dom: makeDomFixture({
+      scope: { level: "L1", baseState: "thread", missingL1: [] },
+    }),
+  });
+  assert.equal(decorativeHeaderMiss.result.pass, true);
+  assert.equal(decorativeHeaderMiss.result.readiness.structurePass, true,
+    "An L1 scope with an empty missingL1 must pass structure even with the top bar unthemed.");
+});
+
 test("home verification does not require a fixed suggestion-card count", async () => {
   const oneSuggestion = {
     querySelectorAll: (selector) => selector === "button"

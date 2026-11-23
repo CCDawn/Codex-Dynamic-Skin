@@ -11,13 +11,28 @@ assert.equal(
 );
 assert.equal(
   selectorFor("header-tint"),
-  "header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*=\"_Header_\"])",
-  "The header contract must support both legacy and Codex 26.727 headers.",
+  "header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*=\"_Header_\"], .h-toolbar, .draggable)",
+  "The header contract must support legacy, Codex 26.727, and the Codex 26.1117 utility-class headers.",
 );
 assert.match(selectorFor("shell-main"), /\[class\*=\"MainContentSurface\"\]/);
 assert.match(selectorFor("header-tint"), /\[class\*=\"_Header_\"\]/);
+assert.match(selectorFor("header-tint"), /\.h-toolbar/);
+assert.match(selectorFor("header-tint"), /\.draggable/);
 assert.doesNotMatch(selectorFor("shell-main"), /_[A-Za-z]+_[a-z0-9]{4,}/);
 assert.doesNotMatch(selectorFor("header-tint"), /_[A-Za-z]+_[a-z0-9]{4,}/);
+// #16: the header glass is decorative. Its contract entry must stay optional so
+// a future Codex DOM move can only downgrade the top bar, never fail
+// structurePass and tear down an otherwise successful injection.
+assert.equal(
+  contract.selectors.find((entry) => entry.key === "header-tint")?.required,
+  false,
+  "header-tint must stay a non-required (decorative) L1 anchor after #16.",
+);
+assert.equal(
+  contract.selectors.find((entry) => entry.key === "header-tint")?.tier,
+  "L1",
+  "header-tint keeps its L1 tier; only its required flag changed.",
+);
 assert.equal(
   selectorFor("main-content-top-fade"),
   ':is(.app-shell-main-content-top-fade, [data-app-shell-main-content-top-fade]:not(:has(*)), [class*="MainContentTopFade"])',
@@ -56,6 +71,20 @@ assert.equal(home.tiers.L2.find(({ key }) => key === "project-selector").status,
 const brokenHome = resultFor("home", ["shell-main", "left-panel", "header-tint", "home-icon"]);
 assert.equal(brokenHome.pass, false);
 assert.equal(brokenHome.exitCode, 1);
+
+// #16: header-tint is decorative (required=false), so a doctor run where only
+// the top-bar glass misses must still grade as passing — the same DOM move
+// used to fail grading and trigger the launcher's teardown.
+const homeWithoutHeader = resultFor("home", [
+  "shell-main", "left-panel", "home-icon", "home-route", "home-route-css",
+]);
+assert.equal(homeWithoutHeader.pass, true);
+assert.equal(homeWithoutHeader.exitCode, 0);
+assert.equal(
+  homeWithoutHeader.tiers.L1.find(({ key }) => key === "header-tint").status,
+  "miss",
+  "A decorative header miss must be reported without failing the page.",
+);
 
 const settings = resultFor("settings", ["settings-panel"]);
 assert.equal(settings.pass, true);

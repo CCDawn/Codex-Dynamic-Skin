@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 import test from "node:test";
 import vm from "node:vm";
 import { SKIN_VERSION, verifySession, waitForVerifiedSession } from "../scripts/injector.mjs";
@@ -144,6 +145,25 @@ test("visible L1 renderer passes exact macOS verification", async () => {
   assert.equal(result.pass, true);
   assert.equal(result.shell.visible, true);
   assert.equal(result.sidebar.visible, true);
+});
+
+test("the decorative header anchor is absent from verification (#16)", async () => {
+  // Codex 26.1117 dropped every legacy header fallback while header-tint was
+  // still a required L1 anchor, so verification failed and the launcher tore
+  // down a working skin (#16). The header glass is decorative: verification
+  // must not probe it, and a fixture with no header element (every fixture
+  // here matches that) must verify whenever the required anchors hold.
+  const injectorSource = await fs.readFile(
+    new URL("../scripts/injector.mjs", import.meta.url), "utf8",
+  );
+  assert.doesNotMatch(
+    injectorSource,
+    /selectorLiteral\("header-tint"\)/,
+    "Verification must never probe the decorative header anchor.",
+  );
+  const result = await verify();
+  assert.equal(result.pass, true);
+  assert.equal(result.checks.structurePass, true);
 });
 
 test("CSS-hidden, detached, and offscreen anchors cannot satisfy L1", async () => {

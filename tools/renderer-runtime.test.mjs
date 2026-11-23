@@ -38,6 +38,10 @@ function makeFixture({
   generic = false, genericComposer = true, genericHome = false, genericSearch = false,
   modernMessages = false, modernComposerLayout = false, cachedPages = false,
   pathname = "/index.html", initialRoute = "",
+  // #16 contracts: simulate anchors going away the way a Codex update does —
+  // headerMissing models the 26.1117 top bar (decorative), shellMissing a
+  // required L1 anchor.
+  headerMissing = false, shellMissing = false,
 } = {}) {
   const attrs = new Map();
   const rootStyle = styleDeclaration();
@@ -189,8 +193,12 @@ function makeFixture({
     partFixtures.composer = makeDomNode("composer", partFixtures.main);
     partFixtures.composerToolbar = makeDomNode("composer-toolbar", partFixtures.composer);
     register("aside.app-shell-left-panel", partFixtures.sidebar);
-    register("main:is(.main-surface, [data-app-shell-main-surface], [class*=\"MainContentSurface\"])", partFixtures.main);
-    register("header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*=\"_Header_\"])", partFixtures.header);
+    if (!shellMissing) {
+      register("main:is(.main-surface, [data-app-shell-main-surface], [class*=\"MainContentSurface\"])", partFixtures.main);
+    }
+    if (!headerMissing) {
+      register("header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*=\"_Header_\"], .h-toolbar, .draggable)", partFixtures.header);
+    }
     register('[data-testid="home-icon"]', partFixtures.homeIcon);
     register('[data-feature="game-source"]', partFixtures.homeHero);
     register('[role="main"]:has([data-testid="home-icon"])', partFixtures.home);
@@ -607,7 +615,10 @@ export async function runRendererRuntimeTest(assetRoot) {
   // canonical CSS therefore gates on the :has()-free home-route-css alias.
   assert.match(css, /main:is\(\.main-surface, \[data-app-shell-main-surface\], \[class\*=\"MainContentSurface\"\]\):has\(\[role="main"\]\)/);
   assert.match(css, /main:is\(\.main-surface, \[data-app-shell-main-surface\], \[class\*=\"MainContentSurface\"\]\):not\(:has\(\[role="main"\]\)\)/);
-  assert.match(css, /header:is\(\.app-header-tint, \[data-app-shell-header-edge-scroll\], \[class\*=\"_Header_\"\]\)/);
+  // Codex 26.1117 reduced the top bar to plain utility classes (.h-toolbar,
+  // .draggable); the contract keeps the three legacy fallbacks in front and
+  // the CSS must expand to the same combined :is() list (#16).
+  assert.match(css, /header:is\(\.app-header-tint, \[data-app-shell-header-edge-scroll\], \[class\*=\"_Header_\"\], \.h-toolbar, \.draggable\)/);
   // Codex 26.924 tags the route wrapper with the same attribute, so the bare
   // form would hide the thread and composer with the fade (#415).
   assert.match(css, /:is\(\.app-shell-main-content-top-fade, \[data-app-shell-main-content-top-fade\]:not\(:has\(\*\)\), \[class\*=\"MainContentTopFade\"\]\)/);
@@ -834,6 +845,27 @@ export async function runRendererRuntimeTest(assetRoot) {
   assert.equal(home.document.adoptedStyleSheets.length, 1);
   assert.equal(state.scope.baseState, "home");
   assert.equal(state.scope.level, "L1");
+
+  // #16 regression contract: header-tint is decorative. When a Codex update
+  // drops every legacy header fallback (as 26.1117 did) the renderer must
+  // keep level L1 with an empty missingL1 — only the "header" theme part is
+  // downgraded. A required anchor (shell-main) missing must still fail to L0.
+  const headerless = makeFixture({ headerMissing: true });
+  vm.runInNewContext(headerless.payloadFor(), headerless.context);
+  const headerlessState = headerless.window.__CODEX_DREAM_SKIN_STATE__;
+  assert.equal(headerlessState.scope.level, "L1",
+    "A missing decorative header must not downgrade the scope level (#16).");
+  assert.equal(headerlessState.scope.missingL1.length, 0,
+    "missingL1 must only ever list required anchors — header-tint is optional.");
+  assert.equal(headerless.partFixtures.header.getAttribute("data-ds-part"), null,
+    "Without a header anchor the decorative header part is simply not tagged.");
+
+  const shellless = makeFixture({ shellMissing: true });
+  vm.runInNewContext(shellless.payloadFor(), shellless.context);
+  const shelllessState = shellless.window.__CODEX_DREAM_SKIN_STATE__;
+  assert.equal(shelllessState.scope.level, "L0",
+    "A missing required shell-main anchor must still downgrade to L0.");
+  assert.deepEqual([...shelllessState.scope.missingL1], ["shell-main"]);
   assert.equal(home.rootStyle.values.get("--dream-skin-brand-subtitle"), '"CODEX DREAM SKIN"');
   assert.equal(home.rootStyle.values.get("--dream-skin-status"), '"DREAM SKIN ONLINE"');
   assert.equal(home.rootStyle.values.get("--ds-theme-surface-radius"), "12px");

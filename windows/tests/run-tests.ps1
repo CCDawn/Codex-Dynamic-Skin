@@ -1645,7 +1645,7 @@ try {
   $css = Read-DreamSkinUtf8File -Path (Join-Path $Root 'assets\dream-skin.css')
   foreach ($requiredCss in @(
     'background-image: var(--dream-skin-art)',
-    'main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"]) > header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*="_Header_"])',
+    'main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"]) > header:is(.app-header-tint, [data-app-shell-header-edge-scroll], [class*="_Header_"], .h-toolbar, .draggable)',
     '[class~="group/application-menu-top-bar"]',
     '.app-shell-main-content-top-fade',
     'data-app-shell-main-content-top-fade',
