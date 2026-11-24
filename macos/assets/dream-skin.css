@@ -2004,6 +2004,31 @@ html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] main[class*="Main
   background-color: transparent !important;
 }
 
+/* Codex 26.1117 adds a floating conversation dock at the window's right edge.
+   Measured live (26.1117.4957.0, wallpaper-only): the only opaque painter in
+   the dock region is its pane shell, which carries the Tailwind arbitrary
+   class bg-[var(--app-shell-panel-background,var(--color-surface))] — no
+   bg-surface token and no CSS module name, so every clearing rule above misses
+   it and the whole dock reads as a solid native slab over the wallpaper. Match
+   the shell's own panel-background token, a stable semantic fragment rather
+   than a hash (contract anchor floating-dock). Builds without the dock never
+   render the class, so the rule stays inert there; as in the catch-all above,
+   interactive controls and overlay containers keep their own paint. The dock's
+   left border frame lives on an ancestor element and its text tokens stay
+   native, so only the pane fill clears and the dock shows the single #root
+   layer like the main thread does. */
+html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] [class*="app-shell-panel-background"]:not([role="dialog"]):not([role="menu"]):not([role="listbox"]):not(button):not(a):not(input):not(textarea):not(select) {
+  background-color: transparent !important;
+}
+
+/* Full mode keeps a real material for the same dock pane: one themed panel
+   layer at the uploaded alpha, the same chain the composer and dialogs
+   resolve their fill with. Interactive controls and overlay containers keep
+   their own paint. */
+html[data-dream-skin="active"][data-dream-ui="full"] [class*="app-shell-panel-background"]:not([role="dialog"]):not([role="menu"]):not([role="listbox"]):not(button):not(a):not(input):not(textarea):not(select) {
+  background-color: rgb(var(--ds-panel-rgb) / var(--ds-upload-panel-alpha, 1)) !important;
+}
+
 /* Collapse the panel paint onto a single layer. 26.1111 can expose up to three
    nested surfaces at once (shell main, aside.app-shell-left-panel,
    main.MainContentSurface-*). Painting each of them at the slider value stacks

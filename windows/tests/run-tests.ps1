@@ -1655,7 +1655,9 @@ try {
     'background-position: var(--ds-art-position)',
     'html[data-dream-skin="active"]',
     'main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"]):has([role="main"])',
-    'main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"]):not(:has([role="main"]))'
+    'main:is(.main-surface, [data-app-shell-main-surface], [class*="MainContentSurface"]):not(:has([role="main"]))',
+    'html[data-dream-skin="active"][data-dream-ui="wallpaper-only"] [class*="app-shell-panel-background"]:not([role="dialog"])',
+    'html[data-dream-skin="active"][data-dream-ui="full"] [class*="app-shell-panel-background"]:not([role="dialog"])'
   )) {
     if (-not $css.Contains($requiredCss)) { throw "Windows immersive CSS is missing: $requiredCss" }
   }

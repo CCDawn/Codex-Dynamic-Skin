@@ -510,6 +510,7 @@ export async function runRendererRuntimeTest(assetRoot) {
   const shellMain = '(?:__DREAM_SELECTOR_SHELL_MAIN__|main:is\\(\\.main-surface, \\[data-app-shell-main-surface\\], \\[class\\*="MainContentSurface"\\]\\))';
   const leftPanel = '(?:__DREAM_SELECTOR_LEFT_PANEL__|aside\\.app-shell-left-panel)';
   const composerChrome = '(?:__DREAM_SELECTOR_COMPOSER_CHROME__|:is\\(\\.composer-surface-chrome, \\[class\\*="ComposerLayoutRoot"\\], \\[data-composer-surface-variant\\]\\[data-composer-radius-variant\\]\\))';
+  const floatingDock = '(?:__DREAM_SELECTOR_FLOATING_DOCK__|\\[class\\*="app-shell-panel-background"\\])';
   for (const keptRule of [
     /html\[data-dream-skin="active"\] \[data-app-shell-page-surface="true"\],/,
     new RegExp(`html\\[data-dream-skin="active"\\] ${shellMain}\\s*\\n\\s*:is\\(div, section, aside\\)\\[class~="bg-token-main-surface-primary"\\] \\{\\s*background: transparent !important;`),
@@ -535,6 +536,15 @@ export async function runRendererRuntimeTest(assetRoot) {
     // tint plus a hairline edge so the input field stays visible against the
     // wallpaper at any slider alpha.
     new RegExp(`html\\[data-dream-skin="active"\\]\\[data-dream-ui="wallpaper-only"\\]\\s+\\[class\\*="ComposerLayoutBody"\\]\\[class\\*="ComposerLayoutBody"\\]\\[class\\*="ComposerLayoutBody"\\]\\[class\\*="ComposerLayoutBody"\\]\\[class\\*="ComposerLayoutBody"\\]\\[class\\*="ComposerLayoutBody"\\]\\s*\\{\\s*background-color: rgb\\(26 28 31 / 0\\.55\\) !important;`),
+    // Codex 26.1117's floating conversation dock paints an opaque native pane
+    // through bg-[var(--app-shell-panel-background,...)] — no bg-surface token
+    // and no module name — so neither the token-family rules nor the catch-all
+    // reach it. Wallpaper-only must clear that pane (one #root layer) and full
+    // mode must give it the themed panel material; interactive controls and
+    // overlay containers keep their own paint through the same :not() chain as
+    // the catch-all.
+    new RegExp(`html\\[data-dream-skin="active"\\]\\[data-dream-ui="wallpaper-only"\\] ${floatingDock}:not\\(\\[role="dialog"\\]\\):not\\(\\[role="menu"\\]\\):not\\(\\[role="listbox"\\]\\):not\\(button\\):not\\(a\\):not\\(input\\):not\\(textarea\\):not\\(select\\) \\{\\s*background-color: transparent !important;\\s*\\}`),
+    new RegExp(`html\\[data-dream-skin="active"\\]\\[data-dream-ui="full"\\] ${floatingDock}:not\\(\\[role="dialog"\\]\\):not\\(\\[role="menu"\\]\\):not\\(\\[role="listbox"\\]\\):not\\(button\\):not\\(a\\):not\\(input\\):not\\(textarea\\):not\\(select\\) \\{\\s*background-color: rgb\\(var\\(--ds-panel-rgb\\) / var\\(--ds-upload-panel-alpha, 1\\)\\) !important;\\s*\\}`),
   ]) {
     assert.match(css, keptRule, "Surface-transparency rules must stay active in wallpaper-only mode.");
   }

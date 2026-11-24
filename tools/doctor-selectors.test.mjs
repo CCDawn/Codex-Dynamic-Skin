@@ -48,6 +48,27 @@ assert.equal(
   ':is([data-message-author-role], [data-local-conversation-user-anchor], [data-local-conversation-final-assistant])',
   "The message contract must bridge both legacy and Codex 26.727 role boundaries.",
 );
+// v1.8.8: the 26.1117 floating conversation dock paints through the shell's
+// own panel-background token (a Tailwind arbitrary class), not a module hash.
+// The anchor must stay optional (the dock only exists when the user opens a
+// side conversation) and must never collide with the bg-surface token family.
+assert.equal(
+  selectorFor("floating-dock"),
+  '[class*="app-shell-panel-background"]',
+  "The floating dock contract must match the shell's own panel-background token fragment.",
+);
+assert.doesNotMatch(selectorFor("floating-dock"), /_[A-Za-z]+_[a-z0-9]{4,}/,
+  "The floating dock anchor must not match a CSS module hash.");
+assert.equal(
+  contract.selectors.find((entry) => entry.key === "floating-dock")?.required,
+  false,
+  "floating-dock is an optional pane (only present with an open side conversation); it must never gate structurePass.",
+);
+assert.equal(
+  contract.selectors.find((entry) => entry.key === "floating-dock")?.tier,
+  "L2",
+  "floating-dock degrades silently; it must stay a non-required L2 anchor.",
+);
 assert.equal(
   selectorFor("settings-panel"),
   '[data-settings-panel-slug="general-settings"]',
