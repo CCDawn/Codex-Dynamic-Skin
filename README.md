@@ -97,6 +97,60 @@
   <img src="docs/images/slider-demo.gif" alt="实时调节演示：壁纸浓度从 100% 拖到 15% 再回调，面板透明度从 95% 拖到 10%，Codex 界面即时跟随变化" width="100%">
 </p>
 
+### 接入 Wallpaper Engine
+
+已订阅 Wallpaper Engine？管理器可以把你已下载到本机的工坊壁纸直接搬进 Codex 窗口，不需要手动找文件。
+
+**前提条件**
+
+- Windows 管理器（安装包或单文件 EXE 均可）。
+- Steam 与 Wallpaper Engine 已安装，并已在创意工坊订阅并下载壁纸。
+- 想用 Scene 场景壁纸时：Wallpaper Engine 需保持安装（管理器只读取其 assets 目录，不要求它正在运行），并按下文说明手动放置场景渲染器 SceneViewer.exe。
+
+**操作步骤**
+
+1. 打开管理器，点击左侧「Wallpaper Engine」按钮。
+2. 在弹出的「Wallpaper Engine 本地壁纸」窗口中选中要导入的壁纸，点击「导入到主页」。列表会扫描所有 Steam 库的 `steamapps\workshop\content\431960`，每个工坊项目只出现一次：视频和 Scene 场景各显示一次，Web 壁纸暂不支持。
+3. 回到主页，点击对应卡片即可应用，来源标签显示「Wallpaper Engine · 动态壁纸 / 场景壁纸」。
+4. 没有看到壁纸？弹窗提示「未找到兼容的视频或 Scene 场景」时，请先在 Wallpaper Engine 中完成订阅和下载；取消订阅或文件被删除的壁纸会在刷新时自动从主页消失。
+
+**视频与场景如何播放**
+
+- **视频（`type: video`）**：直接引用工坊目录里的 MP4/WebM 原文件，不复制、不修改，静音循环播放；超过 1080p 的视频首次应用时用 Windows 自带的转码器在本地转出 1080p 流畅代理，缓存到 `%LOCALAPPDATA%\CodexDreamSkin\media-cache\`，转码失败则回退原视频。单个视频上限 128MB。
+- **场景（`type: scene`）**：`scene.pkg` 是加密场景包，皮肤不会解析它，而是交给独立渲染器 SceneViewer.exe 在本机无头渲染成 1280×720、15fps 的视频流，再经只绑定 `127.0.0.1`、带随机令牌的回环流送进 Codex；应用失败时自动回退为该场景的静态预览图。
+
+两条路径都只发生在本机，全部走 `127.0.0.1`：
+
+```text
+Wallpaper Engine 工坊项目（steamapps\workshop\content\431960，只读引用）
+          ↓
+   type: video                          type: scene
+   直接引用工坊视频原文件                SceneViewer.exe 本机无头渲染
+   （超 1080p 生成本地 1080p 代理）      （1280×720 · 15fps）
+          ↓                                    ↓
+  512KB 分块经 127.0.0.1 CDP        127.0.0.1 回环流（每次启动随机令牌）
+          ↓                                    ↓
+          └─────────→ Codex renderer 背景层 ←──┘
+```
+
+**手动放置 SceneViewer.exe**
+
+SceneViewer 是 GPL-3.0 的独立组件，不随本项目安装包分发，管理器也不会自动下载，需要自行获取该 exe（请随附其 GPL-3.0 许可证与源码信息）。拿到后放到这个完整路径：
+
+```text
+%LOCALAPPDATA%\CodexDreamSkin\scene-runtime\SceneViewer.exe
+```
+
+管理器按以下顺序查找：环境变量 `CODEX_DREAM_SKIN_SCENE_VIEWER` 指定的路径 → 上述 `scene-runtime` 目录 → 管理器 exe 同目录的 `scene-runtime\`。三处都没有时，应用场景壁纸会报错并提示放入 `scene-runtime` 目录。
+
+**边界与限制**
+
+- 仅 Windows 提供，macOS 没有此入口。
+- Web 壁纸与项目脚本不会执行；无声音、无播放列表。
+- 视频上限 128MB；场景固定 1280×720、15fps。
+- 场景兼容性仍在持续验证；远程桌面会话中视频壁纸降级为单帧画面。
+- 暂停皮肤或恢复官方外观会停止场景渲染器；重新启动管理器时会自动恢复当前场景。
+
 ## macOS 安装
 
 在仓库的 [`macos/`](./macos/) 目录双击：
@@ -218,7 +272,7 @@ v1.1.0 及更早版本依赖旧版 DOM 选择器，在 Codex 26.915 上会失效
 <details>
 <summary><strong>这是 Wallpaper Engine 的替代品吗？</strong></summary>
 
-不是。它只控制 Codex 应用内部的主题背景。Windows 管理器可以扫描并直接引用 Wallpaper Engine 已下载到本地的 `type: video` MP4/WebM 项目；超过 1080p 时会生成本地流畅代理。`type: scene` 的 `scene.pkg` 自 v1.8.0 起由管理器一键拉起本机渲染与回环流播放（GPL-3.0 渲染器 SceneViewer 为独立组件，首次使用时放入 `scene-runtime` 目录即可，详见[平台对照](./docs/platforms.md)）；Web 壁纸和项目脚本仍不会执行。
+不是。它只控制 Codex 应用内部的主题背景。Windows 管理器可以扫描并直接引用 Wallpaper Engine 已下载到本地的 `type: video` MP4/WebM 项目；超过 1080p 时会生成本地流畅代理。`type: scene` 的 `scene.pkg` 自 v1.8.0 起由管理器一键拉起本机渲染与回环流播放（GPL-3.0 渲染器 SceneViewer 为独立组件，不随安装包分发，首次使用前请自行把 `SceneViewer.exe` 放到 `%LOCALAPPDATA%\CodexDreamSkin\scene-runtime\`，详见[平台对照](./docs/platforms.md)与[接入 Wallpaper Engine](#接入-wallpaper-engine)）；Web 壁纸和项目脚本仍不会执行。
 </details>
 
 <details>

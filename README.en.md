@@ -98,6 +98,60 @@ The manager provides two independent sliders on the right:
   <img src="docs/images/slider-demo.gif" alt="Live adjustment demo: wallpaper reveal swept from 100% down to 15% and back, panel transparency from 95% to 10%, with the Codex UI following in real time" width="100%">
 </p>
 
+### Use Wallpaper Engine wallpapers
+
+Already subscribed to Wallpaper Engine? The manager can bring the Workshop wallpapers you have already downloaded on this machine straight into the Codex window — no need to hunt for files yourself.
+
+**Prerequisites**
+
+- The Windows manager (Setup installer or single-file EXE).
+- Steam and Wallpaper Engine installed, with wallpapers subscribed and downloaded in the Steam Workshop.
+- For Scene wallpapers: Wallpaper Engine must stay installed (the manager only reads its assets folder; it does not need to be running), and you must place the scene renderer SceneViewer.exe yourself as described below.
+
+**Steps**
+
+1. In the manager, click the **Wallpaper Engine** button on the left.
+2. In the **Wallpaper Engine 本地壁纸** dialog that opens, pick your wallpapers and click **导入到主页**. The list scans `steamapps\workshop\content\431960` in every Steam library and shows each Workshop item only once: videos and Scene entries each appear a single time; Web wallpapers are not supported yet.
+3. Back on the home screen, click a wallpaper card to apply it. Its source label reads **Wallpaper Engine · 动态壁纸 / 场景壁纸**.
+4. Nothing listed? When the dialog reports that no compatible video or Scene entry was found, subscribe and download wallpapers in Wallpaper Engine first. Items you unsubscribe or delete disappear from the home screen automatically on the next refresh.
+
+**How videos and scenes play**
+
+- **Video (`type: video`)**: the workshop MP4/WebM file is referenced in place — never copied or modified — and plays as a muted loop. Above 1080p, the first apply transcodes a smooth local 1080p proxy with Windows' built-in transcoder and caches it in `%LOCALAPPDATA%\CodexDreamSkin\media-cache\`; if transcoding fails, the original video is used. One video is capped at 128 MB.
+- **Scene (`type: scene`)**: `scene.pkg` is an encrypted scene package the skin never parses. Instead, the separate renderer SceneViewer.exe renders it headlessly on your machine into a 1280×720, 15 fps video stream that is handed to Codex over a loopback stream bound to `127.0.0.1` with a random token. If applying fails, the scene's static preview image is applied instead.
+
+Both paths stay entirely on your machine, over `127.0.0.1` only:
+
+```text
+Wallpaper Engine workshop items (steamapps\workshop\content\431960, read-only)
+          ↓
+   type: video                          type: scene
+   workshop video referenced            SceneViewer.exe headless render
+   in place (>1080p -> local proxy)     on your machine (1280×720 · 15 fps)
+          ↓                                    ↓
+  512 KB chunks over 127.0.0.1 CDP   127.0.0.1 loopback stream (random token)
+          ↓                                    ↓
+          └─────────→ Codex renderer background layer ←──┘
+```
+
+**Placing SceneViewer.exe manually**
+
+SceneViewer is a separate GPL-3.0 component. It is not distributed with this project's installer, and the manager never downloads it automatically — obtain the exe yourself (keep its GPL-3.0 license and source information alongside) and put it at this full path:
+
+```text
+%LOCALAPPDATA%\CodexDreamSkin\scene-runtime\SceneViewer.exe
+```
+
+The manager looks it up in this order: the path in the `CODEX_DREAM_SKIN_SCENE_VIEWER` environment variable → the `scene-runtime` folder above → a `scene-runtime\` folder next to the manager exe. If none of the three exists, applying a scene wallpaper reports an error and asks you to place it in the `scene-runtime` folder.
+
+**Boundaries and limits**
+
+- Windows only; there is no such entry on macOS.
+- Web wallpapers and project scripts are never executed; no audio, no playlists.
+- Videos are capped at 128 MB; scenes render at a fixed 1280×720 and 15 fps.
+- Scene compatibility is still being verified; in remote-desktop sessions video wallpapers degrade to a single poster frame.
+- Pausing the skin or restoring the stock appearance stops the scene renderer; restarting the manager restores the current scene automatically.
+
 ## macOS installation
 
 Open [`macos/`](./macos/) and double-click:
@@ -219,7 +273,7 @@ They are feature-equivalent and share local data. The Setup installer adds Start
 <details>
 <summary><strong>Is this a Wallpaper Engine replacement?</strong></summary>
 
-No. It controls only the theme background inside Codex. The Windows manager can scan and directly reference Wallpaper Engine `type: video` MP4/WebM projects already downloaded locally, and generates a smooth local proxy above 1080p. As of v1.8.0, `type: scene` `scene.pkg` streams are launched and served by the manager with one click (the GPL-3.0 SceneViewer renderer stays a separate component: drop it into the `scene-runtime` directory once — see the [platform guide](./docs/platforms.md)). Web wallpapers and project scripts are never executed.
+No. It controls only the theme background inside Codex. The Windows manager can scan and directly reference Wallpaper Engine `type: video` MP4/WebM projects already downloaded locally, and generates a smooth local proxy above 1080p. As of v1.8.0, `type: scene` `scene.pkg` streams are launched and served by the manager with one click (the GPL-3.0 SceneViewer renderer stays a separate component: it is not bundled with the installer, so place `SceneViewer.exe` in `%LOCALAPPDATA%\CodexDreamSkin\scene-runtime\` yourself before first use — see the [platform guide](./docs/platforms.md) and [Use Wallpaper Engine wallpapers](#use-wallpaper-engine-wallpapers)). Web wallpapers and project scripts are never executed.
 </details>
 
 <details>
